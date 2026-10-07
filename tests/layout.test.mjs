@@ -93,6 +93,16 @@ const findOverflow = () => {
       bad.push(`text doesn't fit: ${name} "${el.textContent.trim().slice(0, 30)}" (${el.scrollWidth}px in ${el.clientWidth}px)`);
     }
   }
+  // A set's label and its numbers must not sit on top of each other.
+  for (const sl of root.querySelectorAll(".slot")) {
+    const a = sl.querySelector(".lbl")?.getBoundingClientRect(), b = sl.querySelector(".val")?.getBoundingClientRect();
+    if (a && b && a.width && b.width && a.right > b.left + 1 && a.left < b.right - 1 && a.bottom > b.top + 1 && a.top < b.bottom - 1) bad.push(`set label and numbers overlap: "${sl.textContent.trim().slice(0, 30)}"`);
+  }
+  // Logged set numbers ("135 lb × 12") must stay on one line.
+  for (const el of root.querySelectorAll(".slot .val")) {
+    const lh = parseFloat(getComputedStyle(el).lineHeight) || 20;
+    if (el.offsetHeight && el.getClientRects().length && el.offsetHeight > Math.max(44, lh * 1.8)) bad.push(`set numbers wrap: "${el.textContent.trim()}" is ${el.offsetHeight}px tall, ${el.offsetWidth}px wide`);
+  }
   // Number boxes too narrow to show their value (e.g. a weight of 137.5).
   for (const el of root.querySelectorAll('input[type="number"]')) {
     if (el.offsetWidth && el.scrollWidth > el.clientWidth + 1) bad.push(`number cut off: #${el.id || el.getAttribute("aria-label")} "${el.value}"`);
@@ -205,6 +215,14 @@ async function layoutTests(browser, url) {
     await page.evaluate(() => document.getElementById("sheet").scrollTop = 0);
     await shot("exercise-top");
 
+    // Editing a logged set at this width.
+    await page.evaluate(() => stopRest(false));
+    if (await tap(page, '[data-editset="1"]', "set 2's numbers")) {
+      await page.fill("#wIn", "137.5");
+      clean = (await checkScreen(page, "editing a logged set")) && clean;
+      if (width === SHOT_WIDTH) await shot("exercise-editing");
+      await tap(page, '[data-act="cancel-edit"]', "Cancel");
+    }
     await page.evaluate(() => openSummary());
     clean = (await checkScreen(page, "workout summary")) && clean;
     await shot("summary");
@@ -322,6 +340,20 @@ async function pastDayTests(browser, url) {
     const res = await page.evaluate(d => ({ n: setsOn(d, "chest-press").length, today: setsOn(todayKey(), "chest-press").length, pr: document.querySelectorAll("dialog[open] .slot .pr").length }), day);
     res.n === 3 && res.today === 0 ? pass("3 sets saved to the past day, none to today") : fail(`past-day sets: ${JSON.stringify(res)}`);
     toasts[0].startsWith("New record: 100 lb") && res.pr === 1 ? pass(`record noticed while logging: "${toasts[0]}"`) : fail(`record while logging: toast "${toasts[0]}", PR badges ${res.pr}`);
+    // Fix a logged set: tap its numbers, change them, save.
+    const tBefore = await page.evaluate(d => setsOn(d, "chest-press")[1].t, day);
+    await page.evaluate(() => stopRest(false));
+    await tap(page, '[data-editset="1"]', "set 2's numbers");
+    const label = await page.evaluate(() => document.querySelector('#logForm button[type="submit"]').textContent);
+    await page.fill("#wIn", "105"); await page.fill("#rIn", "9");
+    await tap(page, '#logForm button[type="submit"]', "Save set 2");
+    const edited = await page.evaluate(d => ({ sets: setsOn(d, "chest-press").map(x => `${x.w}x${x.r}`).join(" "), t: setsOn(d, "chest-press")[1].t, toast: document.getElementById("toast").textContent, resting: rest.end > 0, button: document.querySelector('#logForm button[type="submit"]').textContent }), day);
+    label === "Save set 2" && edited.sets === "100x10 105x9 100x8" && edited.t === tBefore && !edited.resting && edited.button === "Log set" && edited.toast.startsWith("Set 2 updated")
+      ? pass(`editing set 2 → ${edited.sets} (time kept, no rest timer)`) : fail(`edit set: label "${label}", ${JSON.stringify(edited)}`);
+    await tap(page, '[data-editset="0"]', "set 1's numbers");
+    await tap(page, '[data-act="cancel-edit"]', "Cancel");
+    const after = await page.evaluate(d => ({ sets: setsOn(d, "chest-press").map(x => `${x.w}x${x.r}`).join(" "), button: document.querySelector('#logForm button[type="submit"]').textContent }), day);
+    after.sets === "100x10 105x9 100x8" && after.button === "Log set" ? pass("Cancel leaves the set unchanged") : fail(`cancel edit: ${JSON.stringify(after)}`);
     await tap(page, 'dialog[open] [data-act="close"]', "close"); await page.waitForTimeout(300);
 
     await tap(page, '[data-act="finish"]', "Finish workout");
@@ -330,13 +362,19 @@ async function pastDayTests(browser, url) {
       records: [...document.querySelectorAll("dialog[open] .record")].map(r => r.textContent.replace(/\s+/g, " ").trim()),
       sets: document.querySelectorAll("dialog[open] .sum-stats .stat .v")[1]?.textContent,
     }));
-    const rec = sum.records.find(r => r.includes("Standing cable chest press") && r.includes("Heaviest set: 100 lb, up from 81"));
+    const rec = sum.records.find(r => r.includes("Standing cable chest press") && r.includes("Heaviest set: 105 lb, up from 81"));
     sum.open && rec && sum.sets === "3" ? pass(`summary: 3 sets, "${rec}"`) : fail(`summary: ${JSON.stringify(sum)}`);
     // Calories: asks for body weight once, then estimates (3 back-filled sets: ~7 min estimated).
     const ask = await page.evaluate(() => !!document.querySelector("dialog[open] #bwIn"));
     await page.fill("#bwIn", "200"); await tap(page, '[data-act="savebw"]', "Save body weight");
     const est = await page.evaluate(() => document.querySelector("dialog[open] .cal-card")?.textContent.replace(/\s+/g, " ") || "");
     ask && est.includes("≈ 37 calories") && est.includes("7 min (estimated") ? pass(`calories, estimated time: "${est.trim().slice(0, 60)}…"`) : fail(`calories (estimated): asked=${ask} "${est}"`);
+    await tap(page, '[data-act="editbw"]', "Change body weight");
+    const pre = await page.evaluate(() => document.getElementById("bwIn").value);
+    await page.fill("#bwIn", "180"); await tap(page, '[data-act="savebw"]', "Save body weight");
+    const est2 = await page.evaluate(() => document.querySelector("dialog[open] .cal-card")?.textContent.replace(/\s+/g, " ") || "");
+    pre === "200" && est2.includes("≈ 33 calories") && est2.includes("180 lb") ? pass("Change body weight on the summary: 200 → 180 lb, ≈ 33 calories") : fail(`change body weight: prefilled "${pre}", "${est2}"`);
+    await page.evaluate(() => { Store.state.bodyWeight = 200; Store.saveState(); });
     await back();
     (await page.evaluate(() => !document.querySelector("dialog[open]"))) ? pass("back closes the summary") : fail("summary still open after back");
     // Measured time: two sets 40 minutes apart today, 200 lb body weight -> 3.5 x 90.7 kg x 41/60 h = 217.
