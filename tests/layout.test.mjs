@@ -70,7 +70,9 @@ const findOverflow = () => {
   const limit = dlg ? dlg.getBoundingClientRect().right : document.documentElement.clientWidth;
   const scrollsSideways = el => {
     for (let p = el.parentElement; p && p !== root && p.id !== "view"; p = p.parentElement) {
-      if (/(auto|scroll)/.test(getComputedStyle(p).overflowX)) return true;
+      const cs = getComputedStyle(p);
+      if (/(auto|scroll)/.test(cs.overflowX)) return true;
+      if (cs.overflowX === "hidden" && cs.textOverflow === "ellipsis") return true;   // cut off with "…" on purpose
     }
     return false;
   };
@@ -211,13 +213,29 @@ async function layoutTests(browser, url) {
     if (stay.pageScrolls || !stay.contentScrolls || stay.bottom !== stay.screen || !stay.onTop) fail(`bottom tabs after scrolling: ${JSON.stringify(stay)}`);
     if (nav.minH < 44) fail(`bottom tabs are only ${Math.round(nav.minH)}px tall (want 44+)`);
 
+    // Today: the first exercise starts on the first screen; the exercise view's Log set is on screen without scrolling.
+    {
+      await tap(page, 'nav.tabs [data-tab="today"]', "the today tab"); await tap(page, '[data-day="mon"]', "Monday");
+      const first = await page.evaluate(() => Math.round(document.querySelector(".ex-row").getBoundingClientRect().top));
+      if (first > 780 * 0.55) fail(`Today: the first exercise starts at ${first}px of 780`);
+      await page.evaluate(() => openSheet("rdl"));
+      const dock = await page.evaluate(() => {
+        const d = document.getElementById("sheet"), b = document.querySelector('#logForm button[type="submit"]'), r = b.getBoundingClientRect(), box = d.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return { inView: r.top >= box.top && r.bottom <= box.bottom + 1, onTop: b.contains(hit), scrolled: d.scrollTop };
+      });
+      if (!dock.inView || !dock.onTop) fail(`Log set isn't on screen when an exercise opens: ${JSON.stringify(dock)}`);
+      await page.evaluate(() => document.getElementById("sheet").close()); await page.waitForTimeout(200);
+    }
+
     // Work through Monday from the Today tab: log a set so the rest timer and set list show.
     await tap(page, 'nav.tabs [data-tab="today"]', "the today tab");
     await tap(page, '[data-day="mon"]', "Monday");
     await tap(page, '[data-open="chest-press"]', "the first exercise");
     if (!(await page.$("dialog[open] #wIn"))) { fail("exercise view didn't open from Today"); await ctx.close(); continue; }
-    for (const reps of ["12", "11", "10"]) {             // all 3 planned sets
-      await page.fill("#wIn", "135"); await page.fill("#rIn", reps);
+    const planned = await page.evaluate(() => planItemFor("chest-press").sets);
+    for (let k = 0; k < planned; k++) {                 // every planned set
+      await page.fill("#wIn", "135"); await page.fill("#rIn", String(12 - k));
       await tap(page, '#logForm button[type="submit"]', "Log set");
       await page.waitForTimeout(120);
     }
@@ -226,7 +244,7 @@ async function layoutTests(browser, url) {
       const slots = [...document.querySelectorAll("dialog[open] .slot")];
       return { done: slots.filter(x => x.classList.contains("done") && isGreen(x)).length, total: slots.length, logger: document.querySelector("dialog[open] .logger").classList.contains("complete") };
     });
-    if (green.done !== 3 || green.total !== 3 || !green.logger) fail(`after 3 sets: ${green.done} of ${green.total} set rows green, exercise marked done: ${green.logger}`);
+    if (green.done !== planned || green.total !== planned || !green.logger) fail(`after ${planned} sets: ${green.done} of ${green.total} set rows green, exercise marked done: ${green.logger}`);
     await page.fill("#wIn", "137.5");   // widest realistic weight
     const shown = await page.evaluate(() => {
       const t = document.getElementById("toast"); if (t.hidden) return "hidden";
@@ -283,7 +301,7 @@ async function layoutTests(browser, url) {
     await page.evaluate(() => { setLogDate(null); render(); });
 
     if (errors.length) fail(`script errors: ${errors.join(" | ")}`);
-    if (clean && !nav.scrolls && nav.minH >= 44 && taps >= 44 && !errors.length && green.done === 3) pass(`all screens and ${ids.length} exercise views fit; finished sets and exercises turn green`);
+    if (clean && !nav.scrolls && nav.minH >= 44 && taps >= 44 && !errors.length && green.done === planned) pass(`all screens and ${ids.length} exercise views fit; finished sets and exercises turn green`);
     await ctx.close();
   }
 }
@@ -603,6 +621,44 @@ async function reviewFixTests(browser, url) {
   }
 }
 
+// The balanced plan: every main muscle 10-20 sets a week, days of at most 18 sets; saved plans
+// that are still the old starter plan switch, edited ones are offered the switch.
+async function balanceTests(browser, url) {
+  console.log("\nBalanced plan");
+  const mobile = { viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, reducedMotion: "reduce" };
+  {
+    const ctx = await browser.newContext(mobile), page = await ctx.newPage();
+    await page.goto(url);
+    const r = await page.evaluate(() => {
+      const plan = muscleSetsFrom(Object.values(DEFAULT_PLAN).flatMap(d => d.items.map(x => [x.id, x.sets])));
+      const minor = ["forearms", "obliques", "lower-back"];
+      const off = Object.entries(plan).filter(([m, v]) => !minor.includes(m) && (v < 10 || v > 20)).map(([m, v]) => `${m} ${v}`);
+      const days = Object.entries(DEFAULT_PLAN).map(([d, x]) => [d, x.items.reduce((a, i) => a + i.sets, 0)]).filter(([, n]) => n > 18).map(([d, n]) => `${d} ${n}`);
+      return { off, days, quads: plan.quads, calves: plan.calves, glutes: plan.glutes };
+    });
+    !r.off.length && !r.days.length ? pass(`every main muscle 10–20 sets a week (quads ${r.quads}, calves ${r.calves}, glutes ${r.glutes}); no day over 18 sets`) : fail(`plan balance: ${JSON.stringify(r)}`);
+    await ctx.close();
+  }
+  for (const [label, edit] of [["untouched starter plan", false], ["edited plan", true]]) {
+    const ctx = await browser.newContext(mobile), page0 = await ctx.newPage();
+    await page0.goto(url);
+    const old = await page0.evaluate(e => { const p = clone(PLAN_V4); if (e) p.mon.items[0].sets = 5; return { state: { units: "lb", planVersion: 4, plan: p }, logs: {} }; }, edit);
+    await page0.close();
+    await ctx.addInitScript(([key, value]) => { localStorage.setItem(key, value); }, [LS_KEY, JSON.stringify(old)]);
+    const page = await ctx.newPage(); await page.goto(url);
+    const st = await page.evaluate(() => ({ same: planSig(Store.state.plan) === planSig(DEFAULT_PLAN), offer: Store.state.planOffer, monSets: Store.state.plan.mon.items[0].sets }));
+    if (!edit) st.same && !st.offer ? pass("an untouched starter plan switches to the balanced plan") : fail(`${label}: ${JSON.stringify(st)}`);
+    else {
+      const kept = !st.same && st.offer && st.monSets === 5;
+      await tap(page, 'nav.tabs [data-tab="plan"]', "the plan tab");
+      await tap(page, '[data-act="plan-new"]', "Use the balanced plan");
+      const after = await page.evaluate(() => ({ same: planSig(Store.state.plan) === planSig(DEFAULT_PLAN), offer: Store.state.planOffer }));
+      kept && after.same && !after.offer ? pass("an edited plan is kept, and offered the balanced plan (one tap to switch)") : fail(`${label}: before ${JSON.stringify(st)}, after ${JSON.stringify(after)}`);
+    }
+    await ctx.close();
+  }
+}
+
 // The cable shrug (traps) and the weekly sets-per-muscle card.
 async function trapsAndWeeklyTests(browser, url) {
   console.log("\nTraps and weekly sets");
@@ -617,15 +673,15 @@ async function trapsAndWeeklyTests(browser, url) {
       document.getElementById("sheet").close();
       return { main, shaded, tue: Store.state.plan.tue.items.map(x => x.id).includes("shrug"), count: EX.length };
     });
-    r.main === "Traps" && r.shaded >= 3 && r.tue && r.count === 20 ? pass("cable shrug: works the traps (shaded front and back), on Tuesday's plan") : fail(`shrug: ${JSON.stringify(r)}`);
+    r.main === "Traps" && r.shaded >= 3 && r.tue && r.count === 22 ? pass("cable shrug: works the traps (shaded front and back), on Tuesday's plan") : fail(`shrug: ${JSON.stringify(r)}`);
     // Log 3 sets of chest press this week: chest 3 (main), front delts and triceps 1½ each (also worked).
     await tap(page, '[data-day="mon"]', "Monday"); await tap(page, '[data-open="chest-press"]', "chest press");
     for (const reps of ["10", "10", "10"]) { await page.fill("#wIn", "100"); await page.fill("#rIn", reps); await tap(page, '#logForm button[type="submit"]', "Log set"); }
     await page.evaluate(() => document.getElementById("sheet").close()); await page.waitForTimeout(300);
     await tap(page, 'nav.tabs [data-tab="progress"]', "the progress tab");
     const rows = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll(".ms-row")].map(r => [r.querySelector(".ms-name").textContent, r.querySelector(".ms-val").textContent])));
-    rows.Chest === "3/10" && rows["Front delts"] === "1½/11" && rows.Triceps === "1½/10" && rows.Traps === "0/7½" && rows.Glutes === "0/19"
-      ? pass("sets per muscle this week: Chest 3/10, Front delts 1½/11, Triceps 1½/10") : fail(`sets per muscle: ${JSON.stringify(rows)}`);
+    rows.Chest === "3/10" && rows["Front delts"] === "1½/11" && rows.Triceps === "1½/10½" && rows.Traps === "0/10" && rows.Glutes === "0/17" && rows.Calves === "0/10"
+      ? pass("sets per muscle this week: Chest 3/10, Front delts 1½/11, Triceps 1½/10½") : fail(`sets per muscle: ${JSON.stringify(rows)}`);
     await tap(page, '[data-week="-1"]', "Last week");
     const last = await page.evaluate(() => document.querySelector(".ms-row .ms-val").textContent);
     last === "0/10" ? pass("Last week shows last week's sets") : fail(`last week chest: ${last}`);
@@ -711,6 +767,7 @@ try {
   await bodyWeightTests(browser, url);
   await reviewFixTests(browser, url);
   await trapsAndWeeklyTests(browser, url);
+  await balanceTests(browser, url);
   if (!process.argv.includes("--layout-only")) await updateTests(browser);
 } finally {
   server.close();

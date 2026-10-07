@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#11161b">
-<meta name="app-version" content="2026.10.07-12">
+<meta name="app-version" content="2026.10.07-13">
 <meta name="description" content="Cable machine workouts by day, with pulley-height diagrams, set logging and progress charts.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -91,7 +91,7 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin
 .muted { color: var(--muted); }
 .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.stack { display: grid; gap: 12px; }
+.stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }     /* contents can't push a section wider than the screen */
 
 .daychips { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip-btn {
@@ -159,6 +159,30 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin
 .fig .bar-end { fill: var(--fig); stroke: var(--cable); stroke-width: 2.5; }
 .fig .strand { stroke: var(--cable); stroke-width: 3; stroke-linecap: round; }
 .fig .ball { fill: var(--cable); }
+
+/* Muscles line on Today (opens to the body map) */
+.musc-fold { min-width: 0; }
+.musc-fold summary { list-style: none; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+.musc-fold summary::-webkit-details-marker { display: none; }
+.musc-fold summary::after { content: "▾"; color: var(--muted); margin-left: auto; transition: transform .15s; }
+.musc-fold[open] summary::after { transform: rotate(180deg); }
+.musc-fold .mf-list { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--muted); }
+.musc-fold .mf-list b { color: var(--ink); font-weight: 600; }
+.musc-fold[open] .musc { margin-top: 8px; }
+.offer { display: grid; gap: 10px; padding: 12px 14px; border-radius: var(--r); background: color-mix(in srgb, var(--accent) 16%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); }
+
+/* Logging bar pinned to the bottom of the exercise view */
+.log-dock { position: sticky; bottom: 0; z-index: 3; display: grid; gap: 8px; margin: 0 -16px -24px; padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg); border-top: 1px solid var(--line); box-shadow: 0 -8px 18px rgb(0 0 0 / .18); }
+.log-dock .log-form { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+.log-dock .log-form label { min-width: 0; font-size: 11px; }
+.log-dock .log-form .stepper { width: 100%; gap: 3px; display: flex; }
+.log-dock .log-form .stepper button { width: 36px; height: 44px; flex: none; }
+.log-dock .log-form input { width: 100%; min-width: 0; height: 44px; font-size: 16px; padding: 0 2px; text-align: center; }
+.log-dock .log-form .btn.primary { grid-column: auto; min-height: 44px; font-size: 15px; white-space: nowrap; }
+.log-dock .log-form.editing { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.log-dock .log-form.editing .btn { grid-column: auto; min-height: 44px; }
 
 /* Logging a past day, records, workout summary */
 .date-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -401,6 +425,8 @@ button, a, input, select, label { touch-action: manipulation; }
   .daychips.week .chip-btn { padding: 8px 0; min-height: 40px; font-size: 13px; }
   dialog.sheet { width: 100%; max-width: 100%; height: 100%; max-height: 100%; margin: 0; border-radius: 0; }
   .sheet-inner { padding: env(safe-area-inset-top, 0px) 16px calc(24px + env(safe-area-inset-bottom, 0px)); gap: 14px; }
+  .log-dock { margin-bottom: calc(-24px - env(safe-area-inset-bottom, 0px)); }
+  .date-row input[type="date"], .date-row .icon-btn { min-height: 36px; height: 36px; }
   .sheet-head { position: sticky; top: 0; z-index: 2; background: var(--bg); margin-inline: -16px; padding: 10px 16px; border-bottom: 1px solid var(--line); align-items: center; }
   .sheet-head h2 { font-size: 22px; }
   .sheet-head .icon-btn { min-width: 44px; min-height: 44px; }
@@ -431,7 +457,18 @@ button, a, input, select, label { touch-action: manipulation; }
   .ex-row:not(.complete):hover, .lib-card:hover, .btn:hover { border-color: var(--muted); }
   .icon-btn:hover { background: var(--surface-2); color: var(--ink); }
 }
+@media (max-width: 383px) {
+  .log-dock .log-form .stepper button { width: 32px; }
+  .log-dock .log-form input { font-size: 15px; }
+}
+@media (max-width: 359px) {
+  .log-dock .log-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .log-dock .log-form .btn.primary { grid-column: 1 / -1; }
+  .log-dock .log-form.editing .btn.primary { grid-column: auto; }
+}
 @media (max-width: 340px) {
+  .log-dock .log-form .stepper button { width: 32px; }
+  .log-dock .log-form input { font-size: 14px; }
   .ex-row { grid-template-columns: 72px minmax(0, 1fr); }
   .log-form { grid-template-columns: minmax(0, 1fr); }
   .log-form.editing .btn.primary, .log-form.editing .btn:not(.primary) { grid-column: 1; }
@@ -705,6 +742,30 @@ const EX = [
     b: { t: 0, aL: [4, 4], aR: [4, 4], lL: [3, 0], lR: [3, 0] },
   },
   {
+    id: "front-squat", name: "Dual-cable front squat", group: "legs",
+    muscles: "Quads", level: "low", attach: "2 D-handles",
+    position: "Centered between the towers, handles at your shoulders",
+    view: "front", machine: "both", grip: "split",
+    setup: ["Set both pulleys at the bottom.", "Take a handle in each hand and stand in the middle, feet shoulder-width.", "Bring the handles up to your shoulders, palms facing in, elbows forward."],
+    steps: ["Squat down with your chest tall until your thighs are about parallel.", "Keep the handles at your shoulders the whole way.", "Drive up through your whole foot."],
+    cues: ["Elbows up and forward, torso upright", "Knees track over your toes"],
+    mistakes: ["Letting the elbows drop and the chest fall forward", "Heels lifting off the floor"],
+    a: { view: "front", x: 160, anchor: "hip", t: 0, aL: [20, 172], aR: [20, 172], lL: [6, 3], lR: [6, 3] },
+    b: { lL: [44, -28], lR: [44, -28] },
+  },
+  {
+    id: "calf-raise", name: "Standing cable calf raise", group: "legs",
+    muscles: "Calves", level: "low", attach: "2 D-handles", pair: true,
+    position: "Between the towers, arms at your sides",
+    view: "side", machine: "left", grip: "hands",
+    setup: ["Set both pulleys at the bottom.", "Take a handle in each hand and stand between the towers, arms straight at your sides.", "Put the balls of your feet on a plate or step if you have one; flat floor works too."],
+    steps: ["Rise up onto your toes as high as you can.", "Hold the top for a second.", "Lower slowly until your heels are all the way down."],
+    cues: ["Knees straight but not locked", "Pause at the top and the bottom, no bouncing"],
+    mistakes: ["Bouncing through short, fast reps", "Bending the knees to help"],
+    a: { f: -1, x: 140, anchor: "L", t: 0, rise: 0, aL: [4, 4], aR: [4, 4], lL: [0, 0], lR: [0, 0] },
+    b: { rise: 8 },
+  },
+  {
     id: "pull-through", name: "Cable pull-through", group: "legs",
     muscles: "Glutes, hamstrings", level: "low", attach: "Tricep rope",
     position: "Facing away, rope between your legs",
@@ -753,14 +814,14 @@ const GEAR_FOR = {
   "cross-lateral": ["dhandle"], "front-raise": ["straight-bar"], pushdown: ["straight-bar", "rope"], "overhead-ext": ["rope"],
   "lat-pulldown": ["lat-bar", "neutral-lat"], row: ["triangle"], "face-pull": ["rope"], "rear-delt-fly": ["dhandle"],
   "straight-arm": ["straight-bar", "rope"], curl: ["curl-bar"], "hammer-curl": ["rope"], "goblet-squat": ["dhandle"],
-  rdl: ["straight-bar"], "pull-through": ["rope"], crunch: ["rope"], shrug: ["dhandle"],
+  rdl: ["straight-bar"], "pull-through": ["rope"], crunch: ["rope"], shrug: ["dhandle"], "front-squat": ["dhandle"], "calf-raise": ["dhandle"],
 };
 for (const e of EX) e.gear = GEAR_FOR[e.id] || ["dhandle"];
 /* Muscles: main (p) and also worked (s) for each exercise. */
 const MUSCLES = {
   chest: "Chest", "front-delts": "Front delts", "side-delts": "Side delts", "rear-delts": "Rear delts", traps: "Traps",
   "upper-back": "Upper back", lats: "Lats", biceps: "Biceps", triceps: "Triceps", forearms: "Forearms",
-  abs: "Abs", obliques: "Obliques", "lower-back": "Lower back", glutes: "Glutes", quads: "Quads", hamstrings: "Hamstrings",
+  abs: "Abs", obliques: "Obliques", "lower-back": "Lower back", glutes: "Glutes", quads: "Quads", hamstrings: "Hamstrings", calves: "Calves",
 };
 const MUSCLE_FOR = {
   "chest-press": [["chest"], ["front-delts", "triceps"]], "fly-high": [["chest"], ["front-delts"]], "fly-low": [["chest"], ["front-delts"]],
@@ -768,7 +829,7 @@ const MUSCLE_FOR = {
   "front-raise": [["front-delts"], ["side-delts", "chest"]], pushdown: [["triceps"], []], "overhead-ext": [["triceps"], []],
   "lat-pulldown": [["lats"], ["biceps", "upper-back", "rear-delts"]], row: [["upper-back", "lats"], ["biceps", "rear-delts"]],
   "face-pull": [["rear-delts", "upper-back"], ["traps", "side-delts"]], "rear-delt-fly": [["rear-delts"], ["upper-back"]],
-  shrug: [["traps"], ["forearms"]],
+  shrug: [["traps"], ["forearms"]], "front-squat": [["quads"], ["glutes", "abs"]], "calf-raise": [["calves"], []],
   "straight-arm": [["lats"], ["triceps", "abs"]], curl: [["biceps"], ["forearms"]], "hammer-curl": [["biceps", "forearms"], []],
   "goblet-squat": [["quads", "glutes"], ["abs"]], rdl: [["hamstrings", "glutes"], ["lower-back", "forearms"]],
   "pull-through": [["glutes", "hamstrings"], ["lower-back"]], crunch: [["abs"], ["obliques"]],
@@ -779,6 +840,8 @@ const FOCUS = {
   "hammer-curl": "Also hits the brachialis, which sits under the biceps and thickens the arm.",
   "face-pull": "Also strengthens the rotator cuff, which keeps your shoulders healthy.",
   "straight-arm": "Works the lats without the biceps taking over.",
+  "front-squat": "Holding the handles at your shoulders keeps you upright, which puts more of the work on your quads.",
+  "calf-raise": "Stand with the balls of your feet on a plate or step for a bigger stretch at the bottom.",
 };
 for (const e of EX) [e.p, e.s] = MUSCLE_FOR[e.id] || [[], []];
 
@@ -811,7 +874,7 @@ function muscleMap(primary, secondary, label) {
       <path class="${lv("lats")}" d="M36.5 43 Q31.5 55 35 71 Q38.5 84 46 91 L48 63 Q44.5 55 42 48.5 Z"/>
       <path class="${lv("glutes")}" d="M49.4 100 Q40 99 36.5 105 Q34 113 38 119 Q44 122 49.4 118 Z"/>
       <path class="${lv("hamstrings")}" d="M36.5 122 Q33 137 37 153 Q42 156 47.5 153 Q49.5 137 49.2 122 Q43 125 36.5 122 Z"/>
-      <path class="base" d="M37.5 157 Q42 155 47 157 Q49 168 46.5 188 H39 Q35.5 170 37.5 157 Z"/>
+      <path class="${lv("calves")}" d="M37.5 157 Q42 155 47 157 Q49 168 46.5 188 H39 Q35.5 170 37.5 157 Z"/>
       <ellipse class="base" cx="42.5" cy="192" rx="6" ry="3"/>`)
     + `<path class="${lv("lower-back")}" d="M45.5 64 H54.5 Q56 80 56 96 H44 Q44 80 45.5 64 Z"/>`;
   return `<svg class="mm" viewBox="0 0 206 198" role="img" aria-label="${label}"><g>${front}</g><g transform="translate(106 0)">${back}</g></svg>`;
@@ -844,7 +907,20 @@ const DAYS = [
   ["fri", "Friday"], ["sat", "Saturday"], ["sun", "Sunday"],
 ];
 const it = (id, sets, min, max) => ({ id, sets, min, max });
+// Balanced so every main muscle gets 10-17 sets a week (a set counts 1 for its main muscles,
+// 1/2 for the ones it also works) at 17-18 sets a session.
 const DEFAULT_PLAN = {
+  mon: { title: "Push", items: [it("chest-press", 4, 8, 12), it("fly-high", 3, 10, 15), it("shoulder-press", 3, 8, 12), it("cross-lateral", 3, 12, 15), it("pushdown", 4, 10, 12)] },
+  tue: { title: "Pull", items: [it("lat-pulldown", 4, 8, 12), it("row", 3, 8, 12), it("face-pull", 3, 12, 15), it("shrug", 4, 10, 15), it("curl", 3, 10, 12)] },
+  wed: { title: "Legs & core", items: [it("front-squat", 3, 8, 12), it("rdl", 4, 8, 12), it("pull-through", 3, 12, 15), it("calf-raise", 5, 12, 15), it("crunch", 3, 12, 15)] },
+  thu: { title: "Upper body", items: [it("fly-low", 3, 12, 15), it("lat-pulldown", 3, 10, 12), it("cross-lateral", 3, 12, 15), it("rear-delt-fly", 3, 12, 15), it("overhead-ext", 3, 10, 12), it("hammer-curl", 2, 10, 12)] },
+  fri: { title: "Lower & core", items: [it("goblet-squat", 4, 10, 12), it("front-squat", 3, 8, 12), it("rdl", 3, 8, 12), it("calf-raise", 5, 12, 15), it("crunch", 3, 12, 15)] },
+  sat: { title: "Rest", items: [] },
+  sun: { title: "Rest", items: [] },
+};
+// The starter plan before the balance pass (with the shrug added to Tuesday). A saved plan that
+// still matches it is switched to the balanced one; an edited plan is offered the switch instead.
+const PLAN_V4 = {
   mon: { title: "Push", items: [it("chest-press", 3, 8, 12), it("fly-high", 3, 10, 15), it("shoulder-press", 3, 8, 12), it("cross-lateral", 3, 12, 15), it("pushdown", 3, 10, 12)] },
   tue: { title: "Pull", items: [it("lat-pulldown", 4, 8, 12), it("row", 3, 8, 12), it("face-pull", 3, 12, 15), it("straight-arm", 2, 12, 15), it("curl", 3, 10, 12), it("shrug", 3, 10, 15)] },
   wed: { title: "Legs & core", items: [it("goblet-squat", 4, 10, 12), it("rdl", 3, 8, 12), it("pull-through", 3, 12, 15), it("crunch", 3, 12, 15)] },
@@ -853,6 +929,7 @@ const DEFAULT_PLAN = {
   sat: { title: "Rest", items: [] },
   sun: { title: "Rest", items: [] },
 };
+const planSig = plan => DAYS.map(([d]) => `${(plan[d] && plan[d].title) || ""}:${((plan[d] && plan[d].items) || []).map(x => `${x.id}/${x.sets}/${x.min}/${x.max}`).join(",")}`).join("|");
 // Exercises that were removed, and what a saved plan uses instead (null = drop it).
 const RETIRED = { "lateral-raise": "cross-lateral", kickback: "rdl", abduction: null, woodchop: null };
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -942,6 +1019,16 @@ function solve(p) {
   const mv = q => [q[0] + dx, q[1] + dy];
   for (const k of ["hip", "mid", "sh", "neckEnd", "head", "shL", "shR"]) if (pts[k]) pts[k] = mv(pts[k]);
   for (const k of ["armL", "armR", "legL", "legR"]) pts[k] = pts[k].map(mv);
+  if (p.rise) {                                   // up on the toes: everything lifts, the toes stay down
+    const up = q => [q[0], q[1] - p.rise];
+    for (const k of ["hip", "mid", "sh", "neckEnd", "head", "shL", "shR"]) if (pts[k]) pts[k] = up(pts[k]);
+    for (const k of ["armL", "armR"]) pts[k] = pts[k].map(up);
+    for (const k of ["legL", "legR"]) {
+      const lg = pts[k].map(up), an = lg[2], dir = front ? (k === "legL" ? -1 : 1) : p.f;
+      lg[3] = [an[0] + dir * Math.sqrt(Math.max(0, L.foot ** 2 - p.rise ** 2)), an[1] + p.rise];
+      pts[k] = lg;
+    }
+  }
   return pts;
 }
 
@@ -1115,7 +1202,7 @@ function mountDiagrams(root) {
 const LS_KEY = "cable-workout-log-v1";   // keep: renaming this would lose saved workouts
 const Store = {
   mode: "loading", db: null, uid: null,
-  state: { units: "lb", plan: clone(DEFAULT_PLAN), notes: {}, rest: 90, beep: true, weighIns: [], planVersion: 4 },
+  state: { units: "lb", plan: clone(DEFAULT_PLAN), notes: {}, rest: 90, beep: true, weighIns: [], planOffer: false, planVersion: 5 },
   logs: {},
   timers: {}, chains: {},
   async init() {
@@ -1223,11 +1310,17 @@ function normalizeState(s) {
       && !Object.values(plan).some(d => d && Array.isArray(d.items) && d.items.some(x => x.id === "shrug"))) {
     plan.tue.items.push({ id: "shrug", sets: 3, min: 10, max: 15 });
   }
+  // v5: the balance pass. An untouched starter plan moves to the balanced one.
+  let planOffer = s.planOffer === true, newPlan = plan;
+  if ((s.planVersion || 1) < 5) {
+    if (planSig(plan) === planSig(PLAN_V4)) newPlan = clone(DEFAULT_PLAN);
+    else if (planSig(plan) !== planSig(DEFAULT_PLAN)) planOffer = true;
+  }
   let weighIns = Array.isArray(s.weighIns)
     ? s.weighIns.filter(x => x && /^\d{4}-\d{2}-\d{2}$/.test(x.d) && +x.w > 0 && +x.w < 1000).map(x => ({ d: x.d, w: +x.w })) : [];
   if (!weighIns.length && +s.bodyWeight > 0 && +s.bodyWeight < 1000) weighIns = [{ d: todayKey(), w: +s.bodyWeight }];
   weighIns.sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));
-  return { units, plan, notes: s.notes || {}, rest, beep: s.beep !== false, weighIns, planVersion: 4 };
+  return { units, plan: newPlan, notes: s.notes || {}, rest, beep: s.beep !== false, weighIns, planOffer, planVersion: 5 };
 }
 
 /* ============================================================
@@ -1319,7 +1412,7 @@ function updateStatus() {
    ============================================================ */
 const APP_VERSION = document.querySelector('meta[name="app-version"]')?.content || "";
 const ui = { tab: "today", day: dayIdOf(new Date()), group: "all", chartEx: null, confirm: null };
-try { const t = localStorage.getItem(LS_KEY + ":tab"); if (t) ui.tab = t; } catch (e) {}
+try { const t = localStorage.getItem(LS_KEY + ":tab"); if (t) ui.tab = t; ui.mopen = !!localStorage.getItem(LS_KEY + ":muscles"); } catch (e) {}
 if (["today", "plan", "library", "progress"].includes(location.hash.slice(1))) ui.tab = location.hash.slice(1);
 
 function render() {
@@ -1372,7 +1465,9 @@ function viewToday() {
       </div>
       ${past ? `<div class="past-note">Sets you log now go to ${fmtDate(date, { weekday: "long", month: "short", day: "numeric" })}.</div>` : ""}
       <div class="daychips week" aria-label="Pick a plan day">${chips}</div>
-      ${planned.length ? (m => muscleBlock(m.p, m.s, "Muscles worked"))(musclesFor(planned.map(x => EXMAP[x.id]))) : ""}
+      ${planned.length ? (m => `<details class="musc-fold" id="muscFold" ${ui.mopen ? "open" : ""}>
+        <summary><span class="eyebrow">Muscles</span><span class="mf-list">${[...m.p.map(x => `<b>${MUSCLES[x]}</b>`), ...m.s.map(x => MUSCLES[x])].join(" · ")}</span></summary>
+        ${muscleBlock(m.p, m.s, "Muscles worked")}</details>`)(musclesFor(planned.map(x => EXMAP[x.id]))) : ""}
       ${dayProgress(day)}
     </section>
     ${planned.length ? `<section class="ex-list">${planned.map((it, i) => row(it, i)).join("")}</section>` : extra.length ? "" :
@@ -1453,6 +1548,9 @@ function viewPlan() {
     <section class="stack">
       <div class="eyebrow">Weekly plan</div>
       <h2>Your week</h2>
+      ${Store.state.planOffer ? `<div class="offer">
+        <div><b>A balanced plan is ready.</b> It evens out the week so every muscle gets 10–17 sets: front squats for the quads, calf raises, and more shoulder and trap work. Your current plan stays until you switch.</div>
+        <div class="row"><button class="btn primary" data-act="plan-new">Use the balanced plan</button><button class="btn" data-act="plan-keep">Keep mine</button></div></div>` : ""}
       <p class="muted" style="margin:0">Set what you train each day and your rep range. When you hit the top of the range on every set, the app tells you to add weight.</p>
     </section>
     <section class="stack">${days}</section>
@@ -1749,17 +1847,9 @@ function renderSheet() {
       ${isLogToday() ? "" : `<div class="past-note">Logging for ${fmtDate(logKey(), { weekday: "long", month: "short", day: "numeric" })}</div>`}
       <div class="row" style="justify-content:space-between"><h3>Log ${isLogToday() ? "today" : fmtDate(logKey())}</h3>${today.length >= item.sets
         ? `<span class="pill done">✓ Done</span>` : `<span class="pill">${today.length}/${item.sets} sets · ${item.min}–${item.max} reps</span>`}</div>
-      <div class="muted" style="font-size:13px">Log the number on the weight-stack pin. The Arcadia is 2:1, so the cable feels like about half of that.</div>
+      <div class="muted" style="font-size:13px">Log the number on the pin. With the Arcadia's 2:1 pulleys the handle carries about half that number, plus some friction, and a cable never lets up through the rep, so it can feel heavier than half.</div>
       <div class="hint">${sug.text}${last ? ` <span class="muted">Last time: <span class="num">${last.sets.map(s => `${fmtW(s.w)}×${s.r}`).join(", ")}</span></span>` : ""}</div>
       ${editing ? `<div class="edit-note">Editing set ${ui.editSet + 1}. Change the weight or reps, then save.</div>` : ""}
-      <form class="log-form ${editing ? "editing" : ""}" id="logForm">
-        <label>Weight (${unit()})<span class="stepper"><button type="button" data-step="w:-1" aria-label="Less weight">−</button><input id="wIn" type="number" inputmode="decimal" step="any" min="0" value="${prefillW}" required><button type="button" data-step="w:1" aria-label="More weight">+</button></span></label>
-        <label>Reps<span class="stepper"><button type="button" data-step="r:-1" aria-label="Fewer reps">−</button><input id="rIn" type="number" inputmode="numeric" min="1" max="100" value="${prefillR}" required><button type="button" data-step="r:1" aria-label="More reps">+</button></span></label>
-        ${editing
-          ? `<button class="btn primary" type="submit">Save set ${ui.editSet + 1}</button><button class="btn" type="button" data-act="cancel-edit">Cancel</button>`
-          : `<button class="btn primary" type="submit">Log set</button>`}
-      </form>
-      <div class="rest-bar" data-restbar hidden><div class="rest-fill"></div><span class="lbl">Rest</span><b class="rest-time">1:30</b><button type="button" data-rest="-15" aria-label="15 seconds less">−15</button><button type="button" data-rest="15" aria-label="15 seconds more">+15</button><button type="button" data-rest="skip">Skip</button></div>
       <div class="slots" aria-label="Sets">${Array.from({ length: Math.max(item.sets, today.length) }, (_, i) => {
         const st = today[i];
         if (st) return `<div class="slot done ${i === ui.editSet ? "editing" : ""}"><span class="ck" aria-hidden="true">✓</span><span class="txt"><span class="lbl">Set ${i + 1}</span><button type="button" class="val" data-editset="${i}" aria-label="Edit set ${i + 1}: ${fmtW(st.w)} ${unit()} × ${st.r}">${i === prIndex ? `<span class="pr" title="Personal record">PR</span> ` : ""}${fmtW(st.w)}<span class="u"> ${unit()}</span> × ${st.r}<span class="pen" aria-hidden="true">✎</span></button></span><button data-delset="${i}" aria-label="Delete set ${i + 1}">✕</button></div>`;
@@ -1780,6 +1870,16 @@ function renderSheet() {
       <div><h3>The movement</h3><ol class="steps">${ex.steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol></div>
       <div><h3>Cues</h3><ul class="cues">${ex.cues.map(s => `<li>${esc(s)}</li>`).join("")}</ul></div>
       <div><h3>Common mistakes</h3><ul class="cues">${ex.mistakes.map(s => `<li>${esc(s)}</li>`).join("")}</ul></div>
+    </div>
+    <div class="log-dock" aria-label="Log a set">
+        <div class="rest-bar" data-restbar hidden><div class="rest-fill"></div><span class="lbl">Rest</span><b class="rest-time">1:30</b><button type="button" data-rest="-15" aria-label="15 seconds less">−15</button><button type="button" data-rest="15" aria-label="15 seconds more">+15</button><button type="button" data-rest="skip">Skip</button></div>
+        <form class="log-form ${editing ? "editing" : ""}" id="logForm">
+          <label>Weight (${unit()})<span class="stepper"><button type="button" data-step="w:-1" aria-label="Less weight">−</button><input id="wIn" type="number" inputmode="decimal" step="any" min="0" value="${prefillW}" required><button type="button" data-step="w:1" aria-label="More weight">+</button></span></label>
+          <label>Reps<span class="stepper"><button type="button" data-step="r:-1" aria-label="Fewer reps">−</button><input id="rIn" type="number" inputmode="numeric" min="1" max="100" value="${prefillR}" required><button type="button" data-step="r:1" aria-label="More reps">+</button></span></label>
+          ${editing
+            ? `<button class="btn primary" type="submit">Save set ${ui.editSet + 1}</button><button class="btn" type="button" data-act="cancel-edit">Cancel</button>`
+            : `<button class="btn primary" type="submit">Log set</button>`}
+        </form>
     </div>`;
   const wasManual = sheetDiagram ? sheetDiagram.manual : reduceMotion.matches;
   sheetDiagram = makeDiagram(ex, { manual: wasManual });
@@ -1930,7 +2030,9 @@ view.addEventListener("click", e => {
   if (ds.units) { Store.state.units = ds.units; Store.saveState(); return render(); }
   switch (ds.act) {
     case "reset": ui.confirm = "reset"; return render();
-    case "reset-yes": Store.state.plan = clone(DEFAULT_PLAN); ui.confirm = null; Store.saveState(); toast("Plan reset to the starter plan"); return render();
+    case "reset-yes": Store.state.plan = clone(DEFAULT_PLAN); Store.state.planOffer = false; ui.confirm = null; Store.saveState(); toast("Plan reset to the starter plan"); return render();
+    case "plan-new": Store.state.plan = clone(DEFAULT_PLAN); Store.state.planOffer = false; Store.saveState(); toast("Switched to the balanced plan"); return render();
+    case "plan-keep": Store.state.planOffer = false; Store.saveState(); return render();
     case "cancel": ui.confirm = null; return render();
     case "export": return exportData();
     case "import-yes": return applyImport();
@@ -1938,6 +2040,11 @@ view.addEventListener("click", e => {
     case "finish": return openSummary();
   }
 });
+view.addEventListener("toggle", e => {
+  if (e.target.id !== "muscFold") return;
+  ui.mopen = e.target.open;
+  try { localStorage.setItem(LS_KEY + ":muscles", ui.mopen ? "1" : ""); } catch (err) {}
+}, true);
 view.addEventListener("submit", e => {
   if (e.target.id !== "bwForm") return;
   e.preventDefault();

@@ -3,11 +3,11 @@
 A single-page workout app for training on a REP Arcadia functional trainer (upgraded stacks, Performance and Pro Series attachment packages). Every exercise works both arms or both legs at once.
 
 - **Today**: the exercises planned for this weekday, your last numbers, and how many sets you've done.
-- **Exercise library**: 20 cable exercises, each matched to an Arcadia attachment. Each has an animated diagram that shows where to set the pulley (the yellow block on the tower), where you stand, and the path your hands or ankle travel. The detail view adds setup steps, movement steps, cues, common mistakes, and a field for your own machine's pin setting.
+- **Exercise library**: 22 cable exercises, each matched to an Arcadia attachment. Each has an animated diagram that shows where to set the pulley (the yellow block on the tower), where you stand, and the path your hands or ankle travel. The detail view adds setup steps, movement steps, cues, common mistakes, and a field for your own machine's pin setting.
 - **Demo links**: each exercise links to a YouTube search so you can watch a real person do it.
 - **Attachment drawings**: each exercise shows a drawing of the attachment to clip on, and the Exercises tab lists every attachment you own with the exercises that use it.
 - **On your phone**: bottom tab bar, full-screen exercise view, a rest timer that buzzes when rest is over, the screen stays on while you train, and a "Next exercise" button to move through the workout.
-- **Plan**: an editable weekly plan with sets and rep ranges per exercise.
+- **Plan**: an editable weekly plan with sets and rep ranges per exercise. The starter plan is balanced so every main muscle (calves included) gets 10–17 sets a week, at 17–18 sets a session.
 - **Progress**: workouts per week, a 16-week activity grid, a strength chart per exercise (heaviest set and estimated 1-rep max), and recent history.
 - **Progression hints**: once you hit the top of your rep range on every set, the app tells you to add weight.
 - **Sets and exercises turn green** as you finish them, with a progress bar for the day's workout.
