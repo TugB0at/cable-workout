@@ -99,7 +99,26 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin
 .fig .pulley { fill: var(--surface); stroke: var(--fig); stroke-width: 2; }
 .fig .guide { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 3 5; opacity: .9; }
 .fig .cable { stroke: var(--cable); stroke-width: 2; }
-.fig .handle { fill: var(--surface); stroke: var(--cable); stroke-width: 2.5; }
+.fig .handle { fill: var(--surface); stroke: var(--cable); stroke-width: 2.5; stroke-linejoin: round; }
+.fig .bar-end { fill: var(--fig); stroke: var(--cable); stroke-width: 2.5; }
+.fig .strand { stroke: var(--cable); stroke-width: 3; stroke-linecap: round; }
+.fig .ball { fill: var(--cable); }
+
+/* Attachment drawings */
+.gear-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.gear-card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 4px; align-content: start; min-width: 0; }
+.gear-card svg { width: 100%; height: auto; max-height: 96px; }
+.gear-card .nm { font-weight: 600; }
+.gear-card .s { font-size: 12px; color: var(--muted); }
+.gear-or { align-self: center; justify-self: center; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.gear-pick { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
+.gear-pick .gear-card { flex: 1 1 180px; }
+.gm { fill: none; stroke: var(--fig); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.gk { fill: none; stroke: var(--fig); stroke-width: 11; stroke-dasharray: 1.5 2.5; }
+.gc { stroke: var(--muted); stroke-width: 2; }
+.gclip { fill: none; stroke: var(--fig); stroke-width: 2.5; }
+.grope { fill: none; stroke: var(--fig); stroke-width: 7; stroke-linecap: round; stroke-dasharray: 5 2; }
+.gball, .ggrip { fill: var(--fig); }
 .fig .trail { fill: none; stroke: var(--cable); stroke-width: 1.5; stroke-dasharray: 2 4; opacity: .75; }
 .fig .arrow { fill: var(--cable); }
 .fig .limb { fill: none; stroke: var(--fig); stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
@@ -211,6 +230,8 @@ ol.steps, ul.cues { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 4px
 @media (max-width: 620px) {
   .ex-row { grid-template-columns: 96px 1fr; gap: 10px; }
   .cols { grid-template-columns: 1fr; }
+  .gear-pick { flex-direction: column; }
+  .gear-pick .gear-card { flex: none; }
   .stats { grid-template-columns: repeat(2, 1fr); }
   h2 { font-size: 26px; }
 }
@@ -489,6 +510,35 @@ const EX = [
     b: { t: 30, t2: 100, aL: [58, -114], aR: [58, -114] },
   },
 ];
+/* Attachments: the Arcadia's two D-handles plus the Performance and Pro Series packages.
+   Drawings are 240 x 100, hanging from a carabiner at the top centre. */
+const CLIP = '<line class="gc" x1="120" y1="0" x2="120" y2="11"/><ellipse class="gclip" cx="120" cy="18" rx="4" ry="7"/>';
+const GEAR = {
+  dhandle: { name: "D-handle", from: "Comes with the Arcadia (2)", glyph: "ring",
+    svg: CLIP + '<path class="gm" d="M120 25L92 64M120 25L148 64"/><rect class="ggrip" x="86" y="60" width="68" height="14" rx="7"/>' },
+  "straight-bar": { name: "20\" straight bar", from: "Performance Package", glyph: "bar",
+    svg: CLIP + '<line class="gc" x1="120" y1="25" x2="120" y2="34"/><circle class="gclip" cx="120" cy="36" r="4"/><path class="gm" d="M26 42H214"/><path class="gk" d="M38 42H100M140 42H202"/>' },
+  "curl-bar": { name: "Multi-grip curl bar", from: "Performance Package", glyph: "bar",
+    svg: CLIP + '<line class="gc" x1="120" y1="25" x2="120" y2="34"/><circle class="gclip" cx="120" cy="36" r="4"/><path class="gm" d="M26 46H56L72 34L90 56L106 42H134L150 56L168 34L184 46H214"/>' },
+  rope: { name: "Tricep rope", from: "Performance Package", glyph: "rope",
+    svg: CLIP + '<rect class="ggrip" x="112" y="25" width="16" height="11" rx="2"/><path class="grope" d="M117 37Q110 58 98 76M123 37Q130 58 142 76"/><circle class="gball" cx="96" cy="83" r="9"/><circle class="gball" cx="144" cy="83" r="9"/>' },
+  "lat-bar": { name: "48\" lat bar", from: "Pro Series Package", glyph: "bar",
+    svg: CLIP + '<line class="gc" x1="120" y1="25" x2="120" y2="36"/><circle class="gclip" cx="120" cy="38" r="4"/><path class="gm" d="M8 66L36 44H204L232 66"/><path class="gk" d="M11 64L32 47M208 47L229 64"/>' },
+  "neutral-lat": { name: "Neutral-grip lat bar", from: "Pro Series Package", glyph: "bar",
+    svg: CLIP + '<line class="gc" x1="120" y1="25" x2="120" y2="36"/><circle class="gclip" cx="120" cy="38" r="4"/><path class="gm" d="M44 44H196"/><rect class="gm" x="20" y="44" width="24" height="42" rx="9"/><rect class="gm" x="196" y="44" width="24" height="42" rx="9"/><path class="gk" d="M32 52V78M208 52V78"/>' },
+  triangle: { name: "Triangle row handle", from: "Pro Series Package", glyph: "tri",
+    svg: CLIP + '<path class="gm" d="M120 26L80 78H160Z"/><path class="gk" d="M90 78H150"/>' },
+};
+const GEAR_FOR = {
+  "chest-press": ["dhandle"], "fly-high": ["dhandle"], "fly-low": ["dhandle"], "shoulder-press": ["dhandle"],
+  "cross-lateral": ["dhandle"], "front-raise": ["straight-bar"], pushdown: ["straight-bar", "rope"], "overhead-ext": ["rope"],
+  "lat-pulldown": ["lat-bar", "neutral-lat"], row: ["triangle"], "face-pull": ["rope"], "rear-delt-fly": ["dhandle"],
+  "straight-arm": ["straight-bar", "rope"], curl: ["curl-bar"], "hammer-curl": ["rope"], "goblet-squat": ["rope"],
+  rdl: ["straight-bar"], "pull-through": ["rope"], crunch: ["rope"],
+};
+for (const e of EX) e.gear = GEAR_FOR[e.id] || ["dhandle"];
+const gearSvg = (id, label) => `<svg viewBox="0 0 240 100" role="img" aria-label="${label || GEAR[id].name}">${GEAR[id].svg}</svg>`;
+const gearCard = (id, extra = "") => `<div class="gear-card">${gearSvg(id)}<div class="nm">${GEAR[id].name}</div><div class="s">${GEAR[id].from}${extra}</div></div>`;
 const EXMAP = Object.fromEntries(EX.map(e => [e.id, e]));
 for (const e of EX) { if (e.m) e.m = Object.assign({}, e.a, e.m); e.b = Object.assign({}, e.a, e.m || {}, e.b); }
 
@@ -671,7 +721,17 @@ function makeDiagram(ex, opts = {}) {
   }
   parts.head = sv("circle", { r: L.head, class: "head" }, g);
   parts.nearArm = sv("polyline", { class: "limb" }, g);
-  parts.handles = trailPts.filter(t => t.length).map(() => sv("circle", { r: 4.5, class: "handle" }, g));
+  const glyph = GEAR[ex.gear[0]].glyph;
+  parts.handles = trailPts.filter(t => t.length).map(() => {
+    const h = sv("g", {}, g);
+    if (glyph === "rope") {
+      for (const y of [-6, 6]) { sv("line", { x1: 0, y1: 0, x2: 12, y2: y, class: "strand" }, h); sv("circle", { cx: 13, cy: y * 1.1, r: 3.2, class: "ball" }, h); }
+      sv("circle", { r: 2.5, class: "ball" }, h);
+    } else if (glyph === "tri") sv("polygon", { points: "-2,0 11,-7 11,7", class: "handle" }, h);
+    else if (glyph === "bar") sv("circle", { r: 5, class: "bar-end" }, h);
+    else sv("circle", { r: 4.5, class: "handle" }, h);
+    return h;
+  });
   for (const pp of pulleyPoints(ex)) sv("circle", { cx: pp[0], cy: pp[1], r: 5, class: "pulley" }, svg);
   for (const t of trailPts) {
     if (!t.length) continue;
@@ -713,7 +773,11 @@ function drawDiagram(d, k) {
     parts.nearArm.setAttribute("points", P(pts.armR));
   }
   parts.head.setAttribute("cx", pts.head[0]); parts.head.setAttribute("cy", pts.head[1]);
-  parts.handles.forEach((h, i) => { h.setAttribute("cx", grips[i][0]); h.setAttribute("cy", grips[i][1]); });
+  parts.handles.forEach((h, i) => {
+    const pp = pulleys[Math.min(i, pulleys.length - 1)], q = grips[i];
+    const ang = Math.atan2(q[1] - pp[1], q[0] - pp[0]) * 180 / Math.PI;
+    h.setAttribute("transform", `translate(${q[0].toFixed(1)},${q[1].toFixed(1)}) rotate(${ang.toFixed(1)})`);
+  });
 }
 
 // Tempo: 1.1 s lift, 0.35 s hold, 1.6 s lower, 0.45 s pause.
@@ -930,7 +994,14 @@ function viewLibrary() {
       <p class="muted" style="margin:0">Set up for the REP Arcadia: two towers, 32 pulley positions, and the upgraded weight stacks, and the attachments from the Performance and Pro Series packages. Every exercise uses both arms (or both legs) at once. The yellow block on the tower shows where to set the pulley. The dashed line traces the path of your hands (or ankle). Tap an exercise for setup steps and to log sets.</p>
       <div class="daychips">${chips}</div>
     </section>
-    <section class="grid-lib">${list}</section>`;
+    <section class="grid-lib">${list}</section>
+    <section class="stack">
+      <h3>Your attachments</h3>
+      <div class="gear-grid">${Object.keys(GEAR).map(g => {
+        const used = EX.filter(e => e.gear.includes(g)).map(e => e.name);
+        return gearCard(g, used.length ? `<br>Used for: ${esc(used.join(", "))}` : "");
+      }).join("")}</div>
+    </section>`;
 }
 
 function viewPlan() {
@@ -1080,9 +1151,12 @@ function renderSheet() {
     </div>
     <div class="facts">
       <div class="fact pulley-fact"><div class="k">Pulley height</div><div class="v">${lvl.name}</div><div class="s">${lvl.where}</div></div>
-      <div class="fact"><div class="k">Attachment</div><div class="v">${esc(ex.attach)}</div></div>
       <div class="fact"><div class="k">Where you stand</div><div class="v" style="font-weight:500">${esc(ex.position)}</div></div>
     </div>
+    <section class="stack" style="gap:8px" aria-label="Attachment">
+      <div class="eyebrow">Clip on${ex.gear.length > 1 ? " either" : ""}${ex.gear[0] === "dhandle" && (ex.pair || ex.machine === "both") ? " · one on each cable" : ""}</div>
+      <div class="gear-pick">${ex.gear.map(g => gearCard(g)).join('<span class="gear-or">or</span>')}</div>
+    </section>
     <div class="stack" style="gap:6px">
       <label for="noteInput" class="eyebrow">Setting on your machine</label>
       <input id="noteInput" class="note-input" maxlength="40" placeholder="e.g. position 6 of 32" value="${esc(Store.state.notes[ex.id] || "")}">
