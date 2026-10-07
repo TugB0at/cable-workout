@@ -252,6 +252,7 @@ const LEVELS = {
   knee:  { y: 176, name: "Knee",  where: "About knee height" },
   waist: { y: 134, name: "Waist", where: "About hip / belt height" },
   chest: { y: 98,  name: "Chest", where: "About mid-chest height" },
+  shoulder: { y: 84, name: "Shoulder", where: "About shoulder height" },
   head:  { y: 66,  name: "Head",  where: "About forehead height" },
   above: { y: 44,  name: "Above head", where: "Just above the top of your head" },
   high:  { y: 36,  name: "High",  where: "Highest setting, above your head" },
@@ -261,7 +262,7 @@ const GROUPS = { push: "Push", pull: "Pull", legs: "Legs", core: "Core" };
 const EX = [
   {
     id: "chest-press", name: "Standing cable chest press", group: "push",
-    muscles: "Chest, front delts, triceps", level: "chest", attach: "Two D-handles",
+    muscles: "Chest, front delts, triceps", level: "chest", attach: "2 D-handles",
     position: "Facing away, between the towers, staggered stance",
     view: "side", machine: "left", grip: "hands", pair: true,
     setup: ["Set both pulleys at chest height.", "Grab a handle in each hand and step forward until the stack lifts off.", "Stagger your feet, lean slightly forward, hands beside your chest."],
@@ -273,7 +274,7 @@ const EX = [
   },
   {
     id: "fly-high", name: "High-to-low cable fly", group: "push",
-    muscles: "Lower chest, front delts", level: "high", attach: "Two D-handles",
+    muscles: "Lower chest, front delts", level: "high", attach: "2 D-handles",
     position: "Centered between the towers, one foot forward",
     view: "front", machine: "both", grip: "split",
     setup: ["Set both pulleys at the top.", "Take a handle in each hand and step forward to the middle.", "Soft bend in the elbows, arms wide and up."],
@@ -285,7 +286,7 @@ const EX = [
   },
   {
     id: "fly-low", name: "Low-to-high cable fly", group: "push",
-    muscles: "Upper chest, front delts", level: "low", attach: "Two D-handles",
+    muscles: "Upper chest, front delts", level: "low", attach: "2 D-handles",
     position: "Facing away, centered between the towers",
     view: "side", machine: "left", grip: "hands", pair: true,
     setup: ["Set both pulleys at the bottom.", "Take a handle in each hand, face away and step forward to the middle.", "Arms low and slightly behind you, palms facing forward."],
@@ -296,20 +297,8 @@ const EX = [
     b: { aL: [72, 92], aR: [72, 92] },
   },
   {
-    id: "lateral-raise", name: "Single-arm cable lateral raise", group: "push",
-    muscles: "Side delts", level: "low", attach: "One D-handle",
-    position: "Side-on to the tower, working arm farthest from it",
-    view: "front", machine: "left", grip: "handR",
-    setup: ["Set one pulley at the bottom.", "Stand side-on and grab the handle with the hand farthest from the tower.", "The cable runs in front of your body."],
-    steps: ["Raise the arm out to the side until it is level with your shoulder.", "Pause briefly.", "Lower slowly across the body. Do all reps, then switch sides."],
-    cues: ["Lead with the elbow", "Slight lean away from the tower"],
-    mistakes: ["Swinging the torso", "Raising above shoulder height"],
-    a: { view: "front", x: 150, anchor: "hip", t: 0, aL: [10, 10], aR: [-15, -20], lL: [4, 0], lR: [4, 0] },
-    b: { aR: [85, 80] },
-  },
-  {
     id: "front-raise", name: "Cable front raise", group: "push",
-    muscles: "Front delts", level: "low", attach: "Straight bar or rope",
+    muscles: "Front delts", level: "low", attach: "20\" straight bar",
     position: "Facing away, cable between your legs",
     view: "side", machine: "left", grip: "hands",
     setup: ["Set the pulley at the bottom.", "Face away with the cable running between your legs.", "Hold the bar in front of your thighs, arms straight."],
@@ -320,8 +309,32 @@ const EX = [
     b: { aL: [90, 92], aR: [90, 92] },
   },
   {
+    id: "shoulder-press", name: "Standing cable shoulder press", group: "push",
+    muscles: "Shoulders, triceps", level: "low", attach: "2 D-handles",
+    position: "Centered between the towers",
+    view: "front", machine: "both", grip: "split",
+    setup: ["Set both pulleys at the bottom.", "Take a handle in each hand and stand in the middle.", "Bring the handles up to your shoulders, palms forward, elbows under your wrists."],
+    steps: ["Press both handles overhead until your arms are straight.", "Let the hands drift slightly together at the top.", "Lower slowly back to shoulder height."],
+    cues: ["Squeeze your glutes so your back doesn't arch", "Head stays neutral, press up past your face"],
+    mistakes: ["Leaning back to finish the press", "Elbows flaring behind your body"],
+    a: { view: "front", x: 160, anchor: "hip", t: 0, aL: [95, 178], aR: [95, 178], lL: [6, 3], lR: [6, 3] },
+    b: { aL: [162, 186], aR: [162, 186] },
+  },
+  {
+    id: "cross-lateral", name: "Cross-cable lateral raise", group: "push",
+    muscles: "Side delts", level: "low", attach: "2 D-handles",
+    position: "Centered between the towers, cables crossed in front",
+    view: "front", machine: "both", grip: "crossed",
+    setup: ["Set both pulleys at the bottom.", "Grab the left handle with your right hand and the right handle with your left hand.", "Stand in the middle with the cables crossing in front of your hips."],
+    steps: ["Raise both arms out to the sides until they're level with your shoulders.", "Pause briefly.", "Lower slowly until the hands cross in front of you again."],
+    cues: ["Lead with the elbows, soft bend in the arms", "Stay tall, no swinging"],
+    mistakes: ["Shrugging the shoulders up", "Raising above shoulder height"],
+    a: { view: "front", x: 160, anchor: "hip", t: 0, aL: [-12, -16], aR: [-12, -16], lL: [6, 3], lR: [6, 3] },
+    b: { aL: [86, 82], aR: [86, 82] },
+  },
+  {
     id: "pushdown", name: "Triceps pushdown", group: "push",
-    muscles: "Triceps", level: "high", attach: "Straight bar or rope",
+    muscles: "Triceps", level: "high", attach: "Straight bar or tricep rope",
     position: "Facing the tower, close to it",
     view: "side", machine: "left", grip: "hands",
     setup: ["Set the pulley at the top.", "Face the tower, grab the attachment and step in close.", "Elbows tucked at your sides, hands at chest height."],
@@ -333,7 +346,7 @@ const EX = [
   },
   {
     id: "overhead-ext", name: "Overhead triceps extension", group: "push",
-    muscles: "Triceps (long head)", level: "head", attach: "Rope",
+    muscles: "Triceps (long head)", level: "head", attach: "Tricep rope",
     position: "Facing away, staggered stance, leaning forward",
     view: "side", machine: "left", grip: "hands",
     setup: ["Set the pulley at about forehead height.", "Hold the rope behind your head and turn to face away.", "Step out into a staggered stance and lean forward about 30°."],
@@ -345,7 +358,7 @@ const EX = [
   },
   {
     id: "lat-pulldown", name: "Kneeling lat pulldown", group: "pull",
-    muscles: "Lats, biceps, rear delts", level: "high", attach: "Straight bar or two D-handles",
+    muscles: "Lats, biceps, rear delts", level: "high", attach: "48\" lat bar or neutral-grip lat bar",
     position: "Kneeling, facing the tower, an arm's length back",
     view: "side", machine: "left", grip: "hands",
     setup: ["Set the pulley at the top.", "Grab the bar and kneel facing the tower.", "Arms straight up, slight lean back."],
@@ -357,7 +370,7 @@ const EX = [
   },
   {
     id: "row", name: "Standing cable row", group: "pull",
-    muscles: "Mid back, lats, biceps", level: "chest", attach: "V-handle or straight bar",
+    muscles: "Mid back, lats, biceps", level: "chest", attach: "Triangle row handle",
     position: "Facing the tower, knees soft",
     view: "side", machine: "left", grip: "hands",
     setup: ["Set the pulley at chest height.", "Grab the handle and step back until your arms are straight.", "Knees soft, chest tall."],
@@ -369,7 +382,7 @@ const EX = [
   },
   {
     id: "face-pull", name: "Face pull", group: "pull",
-    muscles: "Rear delts, upper back, rotator cuff", level: "above", attach: "Rope",
+    muscles: "Rear delts, upper back, rotator cuff", level: "above", attach: "Tricep rope",
     position: "Facing the tower, a big step back",
     view: "rear", machine: "behind", grip: "split",
     setup: ["Set the pulley just above head height.", "Grab the rope with thumbs pointing back toward you.", "Step back until your arms are straight."],
@@ -380,8 +393,20 @@ const EX = [
     b: { aL: [90, -180], aR: [90, -180], sL: [1, 1], sR: [1, 1] },
   },
   {
+    id: "rear-delt-fly", name: "Cross-cable rear delt fly", group: "pull",
+    muscles: "Rear delts, upper back", level: "shoulder", attach: "2 D-handles",
+    position: "Centered between the towers, facing the machine",
+    view: "rear", machine: "both", grip: "crossed",
+    setup: ["Set both pulleys at shoulder height.", "Grab the left handle with your right hand and the right handle with your left hand.", "Step back to the middle so your arms are straight out in front, cables crossed."],
+    steps: ["Pull both arms out and back until they make a T.", "Squeeze between your shoulder blades.", "Return slowly until your hands cross in front again."],
+    cues: ["Arms nearly straight the whole time", "Keep your shoulders down, away from your ears"],
+    mistakes: ["Bending the elbows into a row", "Going too heavy and leaning back"],
+    a: { view: "rear", x: 160, anchor: "hip", t: 0, aL: [90, 90], aR: [90, 90], sL: [0.15, 0.15], sR: [0.15, 0.15], lL: [6, 3], lR: [6, 3] },
+    b: { sL: [1, 1], sR: [1, 1] },
+  },
+  {
     id: "straight-arm", name: "Straight-arm pulldown", group: "pull",
-    muscles: "Lats", level: "high", attach: "Straight bar or rope",
+    muscles: "Lats", level: "high", attach: "20\" straight bar or tricep rope",
     position: "Facing the tower, hinged forward",
     view: "side", machine: "left", grip: "hands",
     setup: ["Set the pulley at the top.", "Grab the bar and step back two steps.", "Hinge forward about 30° with arms straight overhead."],
@@ -393,7 +418,7 @@ const EX = [
   },
   {
     id: "curl", name: "Cable biceps curl", group: "pull",
-    muscles: "Biceps", level: "low", attach: "Straight or EZ bar",
+    muscles: "Biceps", level: "low", attach: "Multi-grip curl bar",
     position: "Facing the tower",
     view: "side", machine: "left", grip: "hands",
     setup: ["Set the pulley at the bottom.", "Grab the bar with palms up and stand tall, one small step back.", "Arms straight, elbows at your sides."],
@@ -405,7 +430,7 @@ const EX = [
   },
   {
     id: "hammer-curl", name: "Rope hammer curl", group: "pull",
-    muscles: "Biceps, brachialis, forearms", level: "low", attach: "Rope",
+    muscles: "Biceps, brachialis, forearms", level: "low", attach: "Tricep rope",
     position: "Facing the tower",
     view: "side", machine: "left", grip: "hands",
     setup: ["Set the pulley at the bottom.", "Hold the rope ends with palms facing each other.", "Stand tall, elbows at your sides."],
@@ -417,7 +442,7 @@ const EX = [
   },
   {
     id: "goblet-squat", name: "Cable goblet squat", group: "legs",
-    muscles: "Quads, glutes", level: "low", attach: "Rope",
+    muscles: "Quads, glutes", level: "low", attach: "Tricep rope",
     position: "Facing the tower, feet shoulder-width",
     view: "side", machine: "left", grip: "hands",
     setup: ["Set the pulley at the bottom.", "Hold the rope ends at your chest.", "Step back one step, feet shoulder-width, toes slightly out."],
@@ -428,8 +453,20 @@ const EX = [
     b: { t: 38, aL: [10, 150], aR: [10, 150], lL: [88, -28], lR: [88, -28] },
   },
   {
+    id: "rdl", name: "Cable Romanian deadlift", group: "legs",
+    muscles: "Hamstrings, glutes, lower back", level: "low", attach: "20\" straight bar",
+    position: "Facing the tower, a step back",
+    view: "side", machine: "left", grip: "hands",
+    setup: ["Set the pulley at the bottom.", "Grab the bar overhand and step back until the cable is tight.", "Stand tall, feet hip-width, knees soft."],
+    steps: ["Push your hips back and lower the bar along your legs to mid-shin.", "Keep your back flat; stop when you feel a strong hamstring stretch.", "Drive the hips forward to stand tall again."],
+    cues: ["Hips go back, not down", "Bar stays close to your legs"],
+    mistakes: ["Rounding the lower back", "Squatting the weight instead of hinging"],
+    a: { f: -1, x: 120, anchor: "L", t: 72, aL: [-4, -4], aR: [-4, -4], lL: [24, -6], lR: [24, -6] },
+    b: { t: 0, aL: [4, 4], aR: [4, 4], lL: [3, 0], lR: [3, 0] },
+  },
+  {
     id: "pull-through", name: "Cable pull-through", group: "legs",
-    muscles: "Glutes, hamstrings", level: "low", attach: "Rope",
+    muscles: "Glutes, hamstrings", level: "low", attach: "Tricep rope",
     position: "Facing away, rope between your legs",
     view: "side", machine: "left", grip: "hands",
     setup: ["Set the pulley at the bottom.", "Face away, reach between your legs and grab the rope.", "Walk forward two steps, feet a little wider than hips."],
@@ -440,32 +477,8 @@ const EX = [
     b: { t: 0, aL: [8, 8], aR: [8, 8], lL: [3, 0], lR: [3, 0] },
   },
   {
-    id: "kickback", name: "Glute kickback", group: "legs",
-    muscles: "Glutes", level: "low", attach: "Ankle strap",
-    position: "Facing the tower, holding the frame",
-    view: "side", machine: "left", grip: "ankleL",
-    setup: ["Set the pulley at the bottom and attach the ankle strap.", "Strap one ankle and face the tower.", "Hold the frame and lean slightly forward."],
-    steps: ["Kick the strapped leg straight back and slightly up.", "Squeeze the glute at the top.", "Return slowly. Do all reps, then switch legs."],
-    cues: ["Move from the hip, not the lower back", "Keep the standing knee soft"],
-    mistakes: ["Arching the lower back", "Swinging the leg"],
-    a: { f: -1, x: 105, anchor: "R", t: 22, aL: [72, 78], aR: [72, 78], lL: [12, 4], lR: [2, 0] },
-    b: { lL: [-42, -48] },
-  },
-  {
-    id: "abduction", name: "Standing hip abduction", group: "legs",
-    muscles: "Glute medius, outer hip", level: "low", attach: "Ankle strap",
-    position: "Side-on to the tower, strapped leg farthest from it",
-    view: "front", machine: "left", grip: "ankleR",
-    setup: ["Set the pulley at the bottom and attach the ankle strap.", "Strap the ankle farthest from the tower.", "Stand side-on and hold the tower with your near hand."],
-    steps: ["Lift the strapped leg out to the side.", "Pause.", "Lower slowly, letting the leg cross a little in front of the standing leg."],
-    cues: ["Toes point forward", "Stay tall, don't lean over"],
-    mistakes: ["Rotating the toes up", "Leaning the torso away"],
-    a: { view: "front", x: 108, anchor: "hip", t: 0, aL: [78, 88], aR: [10, 10], lL: [2, 0], lR: [-6, -6] },
-    b: { lR: [32, 32] },
-  },
-  {
     id: "crunch", name: "Kneeling cable crunch", group: "core",
-    muscles: "Abs", level: "high", attach: "Rope",
+    muscles: "Abs", level: "high", attach: "Tricep rope",
     position: "Kneeling, facing the tower",
     view: "side", machine: "left", grip: "hands",
     setup: ["Set the pulley at the top.", "Hold the rope ends beside your head and kneel about a foot from the tower.", "Hips stay high over your knees."],
@@ -474,19 +487,6 @@ const EX = [
     mistakes: ["Sitting back onto your heels", "Pulling with the arms"],
     a: { f: -1, x: 120, anchor: "hip", t: 8, t2: 8, aL: [150, -22], aR: [150, -22], lL: [0, -90], lR: [0, -90] },
     b: { t: 30, t2: 100, aL: [58, -114], aR: [58, -114] },
-  },
-  {
-    id: "woodchop", name: "High-to-low woodchop", group: "core",
-    muscles: "Obliques, abs", level: "high", attach: "One D-handle (both hands)",
-    position: "Side-on to the tower, feet wide",
-    view: "front", machine: "left", grip: "hands",
-    setup: ["Set the pulley at the top.", "Stand side-on, feet wide, and grab the handle with both hands.", "Arms up toward the pulley."],
-    steps: ["Pull the handle diagonally down across your body to the far hip.", "Rotate through your torso and pivot the back foot.", "Return slowly up to the pulley. Do all reps, then switch sides."],
-    cues: ["Arms stay fairly straight, the trunk turns", "Brace before each rep"],
-    mistakes: ["Pulling only with the arms", "Rushing the return"],
-    a: { view: "front", x: 175, anchor: "hip", t: 0, tilt: -10, tw: 11, hT: [-34, -90], aL: [0, 0], aR: [0, 0], lL: [12, 2], lR: [14, 4] },
-    m: { tilt: 0, tw: 17, hT: [-2, -36] },
-    b: { tilt: 8, tw: 11, hT: [24, -6], lL: [4, -14], lR: [16, 6] },
   },
 ];
 const EXMAP = Object.fromEntries(EX.map(e => [e.id, e]));
@@ -498,14 +498,16 @@ const DAYS = [
 ];
 const it = (id, sets, min, max) => ({ id, sets, min, max });
 const DEFAULT_PLAN = {
-  mon: { title: "Push", items: [it("chest-press", 3, 8, 12), it("fly-high", 3, 10, 15), it("lateral-raise", 3, 12, 15), it("pushdown", 3, 10, 12), it("overhead-ext", 2, 10, 12)] },
+  mon: { title: "Push", items: [it("chest-press", 3, 8, 12), it("fly-high", 3, 10, 15), it("shoulder-press", 3, 8, 12), it("cross-lateral", 3, 12, 15), it("pushdown", 3, 10, 12)] },
   tue: { title: "Pull", items: [it("lat-pulldown", 4, 8, 12), it("row", 3, 8, 12), it("face-pull", 3, 12, 15), it("straight-arm", 2, 12, 15), it("curl", 3, 10, 12)] },
-  wed: { title: "Legs & core", items: [it("goblet-squat", 4, 10, 12), it("pull-through", 3, 12, 15), it("kickback", 3, 12, 15), it("abduction", 3, 15, 20), it("crunch", 3, 12, 15)] },
+  wed: { title: "Legs & core", items: [it("goblet-squat", 4, 10, 12), it("rdl", 3, 8, 12), it("pull-through", 3, 12, 15), it("crunch", 3, 12, 15)] },
   thu: { title: "Rest", items: [] },
-  fri: { title: "Upper body", items: [it("fly-low", 3, 12, 15), it("row", 3, 8, 12), it("front-raise", 3, 10, 12), it("hammer-curl", 3, 10, 12), it("overhead-ext", 3, 10, 12)] },
-  sat: { title: "Lower & core", items: [it("goblet-squat", 3, 10, 12), it("pull-through", 3, 12, 15), it("kickback", 3, 12, 15), it("woodchop", 3, 10, 12), it("crunch", 3, 12, 15)] },
+  fri: { title: "Upper body", items: [it("fly-low", 3, 12, 15), it("lat-pulldown", 3, 10, 12), it("rear-delt-fly", 3, 12, 15), it("overhead-ext", 3, 10, 12), it("hammer-curl", 3, 10, 12)] },
+  sat: { title: "Lower & core", items: [it("goblet-squat", 3, 10, 12), it("rdl", 3, 8, 12), it("pull-through", 3, 12, 15), it("front-raise", 2, 10, 12), it("crunch", 3, 12, 15)] },
   sun: { title: "Rest", items: [] },
 };
+// Exercises that were removed, and what a saved plan uses instead (null = drop it).
+const RETIRED = { "lateral-raise": "cross-lateral", kickback: "rdl", abduction: null, woodchop: null };
 const clone = o => JSON.parse(JSON.stringify(o));
 
 /* ============================================================
@@ -599,6 +601,7 @@ function gripPoints(ex, pts) {
   const hL = pts.armL[2], hR = pts.armR[2];
   switch (ex.grip) {
     case "split": return [hL, hR];
+    case "crossed": return [hR, hL];          // left pulley to right hand and vice versa
     case "handL": return [hL];
     case "handR": return [hR];
     case "ankleL": return [pts.legL[2]];
@@ -651,7 +654,7 @@ function makeDiagram(ex, opts = {}) {
   const g = sv("g", {}, svg);
   const front = ex.view === "front" || ex.view === "rear";
   const parts = {};
-  const nCables = Math.max(pulleyPoints(ex).length, ex.grip === "split" ? 2 : 1);
+  const nCables = Math.max(pulleyPoints(ex).length, ex.grip === "split" || ex.grip === "crossed" ? 2 : 1);
   parts.cables = Array.from({ length: nCables }, () => sv("line", { class: "cable" }, g));
   if (!front) {
     parts.farLeg = sv("polyline", { class: "limb far" }, g);
@@ -805,7 +808,14 @@ const Store = {
   },
 };
 function normalizeState(s) {
-  return { units: s.units === "lb" ? "lb" : "kg", plan: s.plan && typeof s.plan === "object" ? s.plan : clone(DEFAULT_PLAN), notes: s.notes || {} };
+  const plan = s.plan && typeof s.plan === "object" ? s.plan : clone(DEFAULT_PLAN);
+  for (const day of Object.values(plan)) {
+    if (!day || !Array.isArray(day.items)) continue;
+    const seen = new Set();
+    day.items = day.items.map(x => (x.id in RETIRED ? (RETIRED[x.id] ? { ...x, id: RETIRED[x.id] } : null) : x))
+      .filter(x => x && EXMAP[x.id] && !seen.has(x.id) && seen.add(x.id));
+  }
+  return { units: s.units === "lb" ? "lb" : "kg", plan, notes: s.notes || {} };
 }
 
 /* ============================================================
@@ -917,7 +927,7 @@ function viewLibrary() {
     <section class="stack">
       <div class="eyebrow">${EX.length} cable exercises</div>
       <h2>Exercise library</h2>
-      <p class="muted" style="margin:0">The yellow block on the tower shows where to set the pulley. The dashed line traces the path of your hands (or ankle). Tap an exercise for setup steps and to log sets.</p>
+      <p class="muted" style="margin:0">Set up for the REP Arcadia: two towers, 32 pulley positions, and the upgraded weight stacks, and the attachments from the Performance and Pro Series packages. Every exercise uses both arms (or both legs) at once. The yellow block on the tower shows where to set the pulley. The dashed line traces the path of your hands (or ankle). Tap an exercise for setup steps and to log sets.</p>
       <div class="daychips">${chips}</div>
     </section>
     <section class="grid-lib">${list}</section>`;
@@ -1075,10 +1085,11 @@ function renderSheet() {
     </div>
     <div class="stack" style="gap:6px">
       <label for="noteInput" class="eyebrow">Setting on your machine</label>
-      <input id="noteInput" class="note-input" maxlength="40" placeholder="e.g. pin hole 4 from the bottom" value="${esc(Store.state.notes[ex.id] || "")}">
+      <input id="noteInput" class="note-input" maxlength="40" placeholder="e.g. position 6 of 32" value="${esc(Store.state.notes[ex.id] || "")}">
     </div>
     <section class="logger" aria-label="Log sets">
       <div class="row" style="justify-content:space-between"><h3>Log today</h3><span class="pill">${item.sets} × ${item.min}–${item.max} reps</span></div>
+      <div class="muted" style="font-size:13px">Log the number on the weight-stack pin. The Arcadia is 2:1, so the cable feels like about half of that.</div>
       <div class="hint">${sug.text}${last ? ` <span class="muted">Last time: <span class="num">${last.sets.map(s => `${fmtW(s.w)}×${s.r}`).join(", ")}</span></span>` : ""}</div>
       <form class="log-form" id="logForm">
         <label>Weight (${unit()})<span class="stepper"><button type="button" data-step="w:-1" aria-label="Less weight">−</button><input id="wIn" type="number" inputmode="decimal" step="any" min="0" value="${prefillW}" required><button type="button" data-step="w:1" aria-label="More weight">+</button></span></label>
