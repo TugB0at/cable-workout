@@ -1,6 +1,6 @@
 // Offline support: the app shell is cached on install. Pages are fetched
 // network-first so updates arrive; everything else (icons, fonts) cache-first.
-const CACHE = "cable-workout-v1";
+const CACHE = "cable-workout-v2";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png"];
 
 self.addEventListener("install", e => {
