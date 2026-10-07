@@ -3,7 +3,7 @@
 // (GitHub Pages caches for 10 minutes), so a new version shows up on the next
 // open. Icons and fonts are cache-first. Keep CACHE in step with the
 // app-version meta tag in index.html (the tests check this).
-const CACHE = "tension-2026.10.07-9";
+const CACHE = "tension-2026.10.07-11";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png"];
 
 self.addEventListener("install", e => {
@@ -14,7 +14,8 @@ self.addEventListener("install", e => {
 
 self.addEventListener("activate", e => {
   e.waitUntil(caches.keys()
-    .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+    // Only Tension's own old caches: other sites on this github.io address have theirs here too.
+    .then(keys => Promise.all(keys.filter(k => k.startsWith("tension-") && k !== CACHE).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 

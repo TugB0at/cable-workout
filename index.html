@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#11161b">
-<meta name="app-version" content="2026.10.07-9">
+<meta name="app-version" content="2026.10.07-11">
 <meta name="description" content="Cable machine workouts by day, with pulley-height diagrams, set logging and progress charts.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -365,12 +365,21 @@ button, a, input, select, label { touch-action: manipulation; }
   /* Phone: tabs move to a bottom bar within thumb reach; the exercise view goes full screen. */
   header.top { padding-block: 10px; }
   .brand h1 { font-size: 22px; }
-  nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; margin: 0; gap: 0; justify-content: space-around;
+  /* App-style shell: only the middle scrolls. The page itself never moves, so a browser toolbar
+     that slides in on scroll (Firefox keeps its toolbar at the bottom) can't cover the tabs. */
+  html, body { height: 100%; }
+  body { overflow: hidden; }
+  .shell { height: 100%; display: flex; flex-direction: column; }
+  header.top { display: contents; }
+  .brand { order: 0; flex: none; margin-inline: -16px; padding: 10px 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
+  main#view { order: 1; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; align-content: start;
+    margin-inline: -16px; padding: 18px 16px 96px; }
+  nav.tabs { order: 2; flex: none; position: relative; z-index: 6; margin: 0 -16px; gap: 0; justify-content: space-around;
     background: var(--surface); border-top: 1px solid var(--line); padding: 0 4px env(safe-area-inset-bottom, 0px); }
   nav.tabs { overflow: visible; }
   nav.tabs button { flex: 1 1 auto; min-width: 0; min-height: 52px; padding: 12px 4px 14px; font-size: 15px; letter-spacing: .04em; border-bottom: 0; border-top: 3px solid transparent; }
   nav.tabs button[aria-selected="true"] { border-top-color: var(--accent); }
-  .shell { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  .shell { padding-bottom: 0; }
   .rest-bar.global { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); left: 10px; right: 10px; }
   .toast { bottom: auto; top: calc(66px + env(safe-area-inset-top, 0px)); }
   .daychips.week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
@@ -1089,7 +1098,7 @@ const Store = {
         const snap = await db.collection("data/users/" + uid).get();
         for (const doc of snap.docs) {
           const data = doc.data();
-          if (doc.id === "state") this.state = normalizeState(data);
+          if (doc.id === "state") this.state = normalizeState(clone(data));      // stored bodies are frozen
           else if (doc.id.startsWith("log-")) this.logs[doc.id.slice(4)] = clone(data);
         }
         this.db = db; this.uid = uid; this.mode = "cloud";
@@ -1106,29 +1115,62 @@ const Store = {
     try { localStorage.setItem(LS_KEY, JSON.stringify({ state: this.state, logs: this.logs })); }
     catch (e) { this.mode = "memory"; updateStatus(); }
   },
-  write(docId, body) {
+  // Cloud: documents waiting to be written go out one at a time with their latest contents.
+  // A failed write stays queued and is retried with a growing delay (and when the phone is
+  // back online), so a dropped connection doesn't lose a set.
+  dirty: new Set(), flushing: false, retryIn: 0, retryTimer: null, warned: false,
+  write(docId) {
     if (this.mode !== "cloud") { this.saveLocal(); return; }
-    clearTimeout(this.timers[docId]);
-    setStatus("Saving…");
-    this.timers[docId] = setTimeout(() => {
-      const ref = this.db.doc("data/users/" + this.uid + "/" + docId);
-      const job = () => (body() ? ref.set(body()) : ref.delete());
-      this.chains[docId] = (this.chains[docId] || Promise.resolve())
-        .then(job)
-        .then(() => setStatus("Saved"))
-        .catch(err => {
-          setStatus("Not saved");
-          toast(err && err.code === "quota_exceeded" ? "Storage is full. Export a backup and delete old history." : "Couldn't save that change. Check your connection and try again.");
-        });
-    }, 500);
+    this.dirty.add(docId); setStatus("Saving…");
+    clearTimeout(this.timers.flush); this.timers.flush = setTimeout(() => this.flush(), 500);
   },
-  saveState() { this.write("state", () => clone(this.state)); },
+  bodyFor(docId) {
+    if (docId === "state") return clone(this.state);
+    const d = docId.slice(4); return this.logs[d] ? clone(this.logs[d]) : null;
+  },
+  async flush() {
+    if (this.flushing || this.mode !== "cloud") return;
+    this.flushing = true; clearTimeout(this.retryTimer);
+    try {
+      while (this.dirty.size) {
+        const docId = this.dirty.values().next().value;
+        this.dirty.delete(docId);
+        const ref = this.db.doc("data/users/" + this.uid + "/" + docId), body = this.bodyFor(docId);
+        try { await (body ? ref.set(body) : ref.delete()); }
+        catch (err) {
+          this.dirty.add(docId);
+          const code = err && err.code;
+          if (["quota_exceeded", "invalid_argument", "revoked", "not_granted"].includes(code)) {
+            setStatus("Not saved");
+            toast(code === "quota_exceeded" ? "Storage is full. Export a backup and delete old history." : "Changes can't be saved here. Export a backup to keep them.");
+            return;
+          }
+          this.retryIn = Math.min(60000, this.retryIn ? this.retryIn * 2 : 2000);
+          setStatus("Not saved yet, retrying…");
+          if (!this.warned) { this.warned = true; toast("Couldn't save just now. It will keep trying."); }
+          this.retryTimer = setTimeout(() => this.flush(), this.retryIn);
+          return;
+        }
+      }
+      this.retryIn = 0; this.warned = false; setStatus("Saved");
+    } finally { this.flushing = false; }
+  },
+  saveState() { this.write("state"); },
   saveLog(date) {
     const log = this.logs[date];
     if (log && !Object.keys(log.sets).length) delete this.logs[date];
-    this.write("log-" + date, () => (this.logs[date] ? clone(this.logs[date]) : null));
+    this.write("log-" + date);
   },
 };
+window.addEventListener("online", () => Store.flush());
+window.addEventListener("storage", e => {
+  if (e.key !== LS_KEY || Store.mode !== "local" || !e.newValue) return;
+  try {
+    const o = JSON.parse(e.newValue);
+    Store.state = normalizeState(o.state || {}); Store.logs = o.logs || {};
+    render(); const dlg = document.getElementById("sheet"); if (dlg.open) renderSheet();
+  } catch (err) {}
+});
 function normalizeState(s) {
   const plan = s.plan && typeof s.plan === "object" ? s.plan : clone(DEFAULT_PLAN);
   for (const day of Object.values(plan)) {
@@ -1166,13 +1208,22 @@ const unit = () => Store.state.units;
 const inc = () => (unit() === "lb" ? 5 : 2.5);
 const e1rm = (w, r) => w * (1 + r / 30);
 
-function planItemFor(exId) {
+function planItemFor(exId, day = ui.day) {
+  const own = (Store.state.plan[day]?.items || []).find(x => x.id === exId);
+  if (own) return own;
   for (const [id] of DAYS) { const f = (Store.state.plan[id]?.items || []).find(x => x.id === exId); if (f) return f; }
   return { id: exId, sets: 3, min: 8, max: 12 };
 }
 function setsOn(date, exId) { return Store.logs[date]?.sets?.[exId] || []; }
 // The day sets go to: today, unless a past day was picked on the Today tab.
-const logKey = () => ui.logDate || todayKey();
+// A workout that runs past midnight: yesterday has a set logged (at the time) within the last 3 hours.
+function activeSessionDate() {
+  const y = shiftKey(todayKey(), -1), log = Store.logs[y];
+  if (!log) return null;
+  const last = Math.max(0, ...Object.values(log.sets).flat().map(x => x.t || 0).filter(t => dateKey(new Date(t)) === y));
+  return Date.now() - last < 3 * 3600e3 ? y : null;
+}
+const logKey = () => ui.logDate || activeSessionDate() || todayKey();
 const isLogToday = () => logKey() === todayKey();
 const shiftKey = (k, n) => { const d = parseKey(k); d.setDate(d.getDate() + n); return dateKey(d); };
 function setLogDate(k) {
@@ -1216,7 +1267,9 @@ function setsText(sets) { return sets.map(s => s.r).join(", "); }
 
 let toastTimer;
 function toast(msg) {
-  const t = document.getElementById("toast");
+  const t = document.getElementById("toast"), dlg = document.getElementById("sheet");
+  const host = dlg && dlg.open ? dlg : document.body;          // the open view sits on top of the page
+  if (t.parentElement !== host) host.appendChild(t);
   t.textContent = msg; t.hidden = false;
   clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 3200);
 }
@@ -1501,7 +1554,7 @@ function openSheet(id) {
 }
 /* Calories: MET x body weight (kg) x hours. Resistance training with several exercises at
    8-15 reps is 3.5 METs in the 2024 Adult Compendium of Physical Activities. Time is the
-   measured span of the workout plus a minute for the last set; back-filled days have no
+   time between sets (each gap capped at 10 minutes) plus a minute for the last set; back-filled days have no
    timestamps, so their time is estimated from the sets and the rest timer setting. */
 const MET_RESISTANCE = 3.5;
 // Body weight: one weigh-in per day. A workout uses the weigh-in from that day or the closest one before it.
@@ -1525,7 +1578,11 @@ function weightTrend() {
 function workoutTime(date) {
   const all = Object.values(Store.logs[date]?.sets || {}).flat();
   const ts = all.map(x => x.t).filter(t => t && dateKey(new Date(t)) === date);
-  if (ts.length > 1) return { mins: Math.max(1, Math.round((Math.max(...ts) - Math.min(...ts)) / 60000)) + 1, measured: true };
+  if (ts.length > 1) {
+    ts.sort((a, b) => a - b);
+    let ms = 0; for (let i = 1; i < ts.length; i++) ms += Math.min(ts[i] - ts[i - 1], 10 * 60000);   // a long break or a set added hours later doesn't count
+    return { mins: Math.max(1, Math.round(ms / 60000)) + 1, measured: true };
+  }
   return all.length ? { mins: Math.max(1, Math.round((all.length * ((Store.state.rest || 90) + 40)) / 60)), measured: false } : null;
 }
 function caloriesFor(date) {
@@ -1728,8 +1785,20 @@ async function keepAwake(on) {
   } catch (e) { wakeLock = null; }
 }
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") { if (sheet.open || rest.end) keepAwake(true); paintRest(); }
+  if (document.visibilityState === "visible") { if (sheet.open || rest.end) keepAwake(true); paintRest(); checkDayChange(); }
 });
+// When the day being logged changes by itself (midnight, or a late workout ending), follow
+// that day's plan, unless a past day was picked on purpose.
+let seenLogKey = null;
+function checkDayChange() {
+  const k = logKey();
+  if (k === seenLogKey) return;
+  seenLogKey = k;
+  if (ui.logDate) return;
+  ui.day = dayIdOf(parseKey(k));
+  render(); if (sheet.open) renderSheet();
+}
+setInterval(checkDayChange, 60000);
 
 /* ============================================================
    Events
@@ -1744,7 +1813,7 @@ const hist = {
 function showTab(tab) {
   ui.tab = tab; ui.confirm = null;
   try { localStorage.setItem(LS_KEY + ":tab", tab); } catch (err) {}
-  render(); window.scrollTo(0, 0);
+  render(); window.scrollTo(0, 0); document.getElementById("view").scrollTop = 0;
 }
 document.querySelector("nav.tabs").addEventListener("click", e => {
   const b = e.target.closest("[data-tab]"); if (!b || b.dataset.tab === ui.tab) return;
@@ -1818,9 +1887,13 @@ view.addEventListener("change", e => {
   const t = e.target;
   if (t.dataset.pi) {
     const [d, i, f] = t.dataset.pi.split(":"); const item = Store.state.plan[d].items[+i];
-    const v = Math.max(1, Math.min(50, parseInt(t.value, 10) || 1)); item[f] = v;
-    if (item.min > item.max) { if (f === "min") item.max = item.min; else item.min = item.max; }
-    Store.saveState(); return render();
+    const v = Math.max(1, Math.min(50, parseInt(t.value, 10) || 1)); item[f] = v; t.value = v;
+    if (item.min > item.max) {
+      if (f === "min") item.max = item.min; else item.min = item.max;
+      const other = document.getElementById(`p-${d}-${i}-${f === "min" ? "max" : "min"}`);
+      if (other) other.value = f === "min" ? item.max : item.min;
+    }
+    Store.saveState(); return;
   }
   if (t.dataset.title) { Store.state.plan[t.dataset.title].title = t.value.trim().slice(0, 40); Store.saveState(); return; }
   if (t.id === "chartEx") { ui.chartEx = t.value; return drawChart(); }
@@ -1921,6 +1994,7 @@ sheet.addEventListener("submit", e => {
   e.preventDefault();
   const w = parseFloat(document.getElementById("wIn").value), r = parseInt(document.getElementById("rIn").value, 10);
   if (!(w >= 0) || !(r >= 1)) { toast("Enter a weight and at least 1 rep."); return; }
+  if (Store.mode === "loading") { toast("Still loading your log. Try again in a second."); return; }
   const d = logKey();
   if (ui.editSet != null && setsOn(d, sheetEx.id)[ui.editSet]) {       // saving an edited set: keep its time, no rest timer
     const i = ui.editSet; Object.assign(setsOn(d, sheetEx.id)[i], { w, r });
@@ -1949,13 +2023,17 @@ sheet.addEventListener("submit", e => {
 // After a reload the stack already exists; just pick up where it was (minus an open exercise).
 if (history.state && history.state.tab) {
   ui.tab = history.state.tab;
-  if (history.state.sheet) hist.replace({ tab: ui.tab });
+  if (history.state.sheet) history.back();      // the exercise closed with the reload; drop its entry
 } else {
   hist.replace({ tab: "today" });
   if (ui.tab !== "today") hist.push({ tab: ui.tab });
 }
 render();
-Store.init().then(() => { updateStatus(); render(); });
+Store.init().then(() => {
+  if (!ui.logDate) ui.day = dayIdOf(parseKey(logKey()));
+  seenLogKey = logKey();
+  updateStatus(); render();
+});
 </script>
 <!-- app:end -->
 <div class="update-bar" id="updateBar" hidden role="status"><span>A new version of Tension is ready.</span><button type="button" id="updateBtn">Update</button></div>
