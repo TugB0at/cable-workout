@@ -1,0 +1,12 @@
+{
+  "name": "tension",
+  "private": true,
+  "type": "module",
+  "description": "Cable machine workout tracker (static site, no build step).",
+  "scripts": {
+    "test": "node tests/layout.test.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.1"
+  }
+}

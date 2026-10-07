@@ -1,0 +1,244 @@
+// Phone layout and update checks for Tension.
+//
+//   npm install && npm test
+//
+// What it checks, in a mobile browser at every common Android width (280-430 px,
+// which also covers phones with larger text/zoom settings):
+//   - no screen is wider than the phone: Today, Plan, Exercises, Progress and the
+//     exercise view for every exercise (with sets logged and the rest timer running)
+//   - the bottom tabs fit without scrolling, and the main buttons are big enough to tap
+//   - an installed copy picks up a new version even when the host caches pages for
+//     10 minutes (like GitHub Pages), and keeps logged workouts across the update
+//   - the app opens offline
+// Screenshots of each screen at 360 px go to test-output/ for a visual check.
+
+import { chromium } from "playwright";
+import http from "node:http";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const OUT = path.join(ROOT, "test-output");
+const WIDTHS = [280, 320, 360, 384, 412, 430];
+const SHOT_WIDTH = 360;
+const LS_KEY = "cable-workout-log-v1";
+const TYPES = { ".html": "text/html", ".js": "text/javascript", ".webmanifest": "application/manifest+json", ".png": "image/png", ".json": "application/json" };
+
+const failures = [];
+const fail = (msg) => { failures.push(msg); console.log("  FAIL " + msg); };
+const pass = (msg) => console.log("  ok   " + msg);
+
+// Static server that caches like GitHub Pages (max-age=600).
+function serve(dir) {
+  const server = http.createServer((req, res) => {
+    let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    if (p.endsWith("/")) p += "index.html";
+    const file = path.join(dir, p);
+    if (!file.startsWith(dir) || !fs.existsSync(file)) { res.writeHead(404); return res.end("not found"); }
+    res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "application/octet-stream", "Cache-Control": "max-age=600" });
+    res.end(fs.readFileSync(file));
+  });
+  return new Promise(r => server.listen(0, "127.0.0.1", () => r({ server, url: `http://127.0.0.1:${server.address().port}/` })));
+}
+
+// Three weeks of example workouts plus a long machine note, so every screen has content.
+function seed() {
+  const logs = {}, day = new Date();
+  for (let i = 1; i <= 21; i += 2) {
+    const d = new Date(day); d.setDate(d.getDate() - i);
+    const k = d.toISOString().slice(0, 10);
+    logs[k] = { date: k, sets: {
+      "chest-press": [{ w: 60 + i, r: 12 }, { w: 60 + i, r: 11 }, { w: 60 + i, r: 10 }],
+      "lat-pulldown": [{ w: 90, r: 10 }, { w: 90, r: 9 }],
+      "rdl": [{ w: 100, r: 8 }],
+    } };
+  }
+  return { state: { units: "lb", notes: { "chest-press": "position 31 of 32 on both towers, check!" }, rest: 90, planVersion: 3 }, logs };
+}
+
+// Everything on screen that sticks out past the right edge of the phone (or of the
+// open exercise view). Strips that are meant to scroll sideways are allowed.
+const findOverflow = () => {
+  const dlg = document.querySelector("dialog[open]");
+  const root = dlg || document.body;
+  const limit = dlg ? dlg.getBoundingClientRect().right : document.documentElement.clientWidth;
+  const scrollsSideways = el => {
+    for (let p = el.parentElement; p && p !== root; p = p.parentElement) {
+      if (/(auto|scroll)/.test(getComputedStyle(p).overflowX)) return true;
+    }
+    return false;
+  };
+  const bad = [];
+  for (const el of root.querySelectorAll("*")) {
+    if (el.closest("svg") && el.tagName.toLowerCase() !== "svg") continue;
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height || scrollsSideways(el)) continue;
+    if (r.right > limit + 1 || r.left < -1) {
+      const name = el.tagName.toLowerCase() + (el.id ? "#" + el.id : "") + (el.className && typeof el.className === "string" ? "." + el.className.trim().split(/\s+/).join(".") : "");
+      bad.push(`${name} (${Math.round(r.left)}–${Math.round(r.right)} of ${Math.round(limit)})`);
+    }
+  }
+  // Text squeezed into a box too narrow for it: words spill out over neighbouring
+  // controls (the Plan screen bug), or a column collapses to a sliver.
+  for (const el of root.querySelectorAll("*")) {
+    if (el.closest("svg") || scrollsSideways(el)) continue;
+    const hasText = [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
+    if (!hasText) continue;
+    const cs = getComputedStyle(el);
+    if (cs.display === "none" || cs.visibility === "hidden" || cs.overflowX !== "visible" || el.tagName === "INPUT" || el.tagName === "SELECT" || el.tagName === "OPTION") continue;
+    if (el.scrollWidth > el.clientWidth + 1 && el.clientWidth > 0) {
+      const name = el.tagName.toLowerCase() + (el.className && typeof el.className === "string" ? "." + el.className.trim().split(/\s+/).join(".") : "");
+      bad.push(`text doesn't fit: ${name} "${el.textContent.trim().slice(0, 30)}" (${el.scrollWidth}px in ${el.clientWidth}px)`);
+    }
+  }
+  // Number boxes too narrow to show their value (e.g. a weight of 137.5).
+  for (const el of root.querySelectorAll('input[type="number"]')) {
+    if (el.offsetWidth && el.scrollWidth > el.clientWidth + 1) bad.push(`number cut off: #${el.id || el.getAttribute("aria-label")} "${el.value}"`);
+  }
+  const page = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+  const sheet = dlg ? dlg.scrollWidth - dlg.clientWidth : 0;
+  if (page > 0) bad.unshift(`page scrolls sideways by ${page}px`);
+  if (sheet > 0) bad.unshift(`exercise view scrolls sideways by ${sheet}px`);
+  return bad;
+};
+
+// Tap like a finger would; a control covered by something else is a failure, not a crash.
+async function tap(page, selector, label) {
+  try { await page.click(selector, { timeout: 4000 }); return true; }
+  catch (e) { fail(`can't tap ${label} (${selector}): ${e.message.split("\n").find(l => /intercepts|not visible|outside/.test(l))?.trim() || "timed out"}`); return false; }
+}
+
+async function checkScreen(page, label) {
+  const bad = await page.evaluate(findOverflow);
+  if (bad.length) fail(`${label}: wider than the screen → ${bad.slice(0, 4).join("; ")}${bad.length > 4 ? ` (+${bad.length - 4} more)` : ""}`);
+  return !bad.length;
+}
+
+async function layoutTests(browser, url) {
+  fs.mkdirSync(OUT, { recursive: true });
+  for (const width of WIDTHS) {
+    console.log(`\nPhone ${width} px wide`);
+    const ctx = await browser.newContext({ viewport: { width, height: 780 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, colorScheme: "dark", reducedMotion: "reduce" });
+    const data = seed();
+    await ctx.addInitScript(([key, value]) => { if (!localStorage.getItem(key)) localStorage.setItem(key, value); }, [LS_KEY, JSON.stringify(data)]);
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on("pageerror", e => errors.push(e.message));
+    await page.goto(url);
+    await page.evaluate(() => document.fonts.ready);
+    if (width === WIDTHS[0]) {
+      const fonts = await page.evaluate(() => ["Saira Condensed", "Public Sans", "IBM Plex Mono"].map(f => `${f}: ${document.fonts.check(`16px "${f}"`) ? "loaded" : "FALLBACK"}`));
+      console.log("  fonts  " + fonts.join(", "));
+    }
+    const shot = async name => { if (width === SHOT_WIDTH) await page.screenshot({ path: path.join(OUT, `${name}.png`), fullPage: !(await page.$("dialog[open]")) }); };
+
+    let clean = true;
+    for (const tab of ["today", "plan", "library", "progress"]) {
+      if (!(await tap(page, `nav.tabs [data-tab="${tab}"]`, `the ${tab} tab`))) { clean = false; continue; }
+      if (tab === "today") await tap(page, '[data-day="mon"]', "Monday");
+      await page.waitForTimeout(150);
+      clean = (await checkScreen(page, `${tab} tab`)) && clean;
+      await shot(tab);
+    }
+
+    const nav = await page.evaluate(() => {
+      const n = document.querySelector("nav.tabs");
+      return { scrolls: n.scrollWidth > n.clientWidth + 1, minH: Math.min(...[...n.querySelectorAll("button")].map(b => b.getBoundingClientRect().height)) };
+    });
+    if (nav.scrolls) fail("bottom tabs don't fit; they scroll sideways");
+    if (nav.minH < 44) fail(`bottom tabs are only ${Math.round(nav.minH)}px tall (want 44+)`);
+
+    // Work through Monday from the Today tab: log a set so the rest timer and set list show.
+    await tap(page, 'nav.tabs [data-tab="today"]', "the today tab");
+    await tap(page, '[data-day="mon"]', "Monday");
+    await tap(page, '[data-open="chest-press"]', "the first exercise");
+    if (!(await page.$("dialog[open] #wIn"))) { fail("exercise view didn't open from Today"); await ctx.close(); continue; }
+    await page.fill("#wIn", "135"); await page.fill("#rIn", "12");
+    await tap(page, '#logForm button[type="submit"]', "Log set");
+    await page.waitForTimeout(150);
+    await page.fill("#wIn", "137.5");   // widest realistic weight
+    const taps = await page.evaluate(() => Math.min(...[...document.querySelectorAll('#logForm button')].map(b => b.getBoundingClientRect().height)));
+    if (taps < 44) fail(`log buttons are only ${Math.round(taps)}px tall (want 44+)`);
+    clean = (await checkScreen(page, "exercise view with a set logged")) && clean;
+    await page.evaluate(() => document.querySelector(".logger").scrollIntoView());
+    await shot("exercise-logging");
+    await page.evaluate(() => document.getElementById("sheet").scrollTop = 0);
+    await shot("exercise-top");
+
+    // Every exercise, with the rest timer still running.
+    const ids = await page.evaluate(() => EX.map(e => e.id));
+    const wide = [];
+    for (const id of ids) {
+      await page.evaluate(i => openSheet(i), id);
+      const bad = await page.evaluate(findOverflow);
+      if (bad.length) wide.push(`${id} → ${bad[0]}`);
+    }
+    if (wide.length) fail(`${wide.length} of ${ids.length} exercise views are wider than the screen: ${wide.slice(0, 3).join("; ")}`);
+    await page.evaluate(() => document.getElementById("sheet").close());
+    clean = clean && !wide.length;
+
+    if (errors.length) fail(`script errors: ${errors.join(" | ")}`);
+    if (clean && !nav.scrolls && nav.minH >= 44 && taps >= 44 && !errors.length) pass(`all screens and ${ids.length} exercise views fit`);
+    await ctx.close();
+  }
+}
+
+async function updateTests(browser) {
+  console.log("\nInstalled app: updates and offline");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tension-site-"));
+  for (const f of fs.readdirSync(ROOT)) if (/\.(html|js|webmanifest|png)$/.test(f)) fs.copyFileSync(path.join(ROOT, f), path.join(dir, f));
+  const { server, url } = await serve(dir);
+  const ctx = await browser.newContext({ viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true });
+  const page = await ctx.newPage();
+  try {
+    await page.goto(url);
+    await page.evaluate(() => navigator.serviceWorker.ready);
+    await page.reload();
+    const controlled = await page.evaluate(() => !!navigator.serviceWorker.controller);
+    controlled ? pass("offline support installed") : fail("service worker isn't controlling the page");
+
+    const version = await page.evaluate(() => document.querySelector('meta[name="app-version"]')?.content);
+    const swCache = fs.readFileSync(path.join(dir, "sw.js"), "utf8").match(/const CACHE = "tension-([^"]+)"/)?.[1];
+    version && version === swCache ? pass(`version ${version} matches the offline cache name`) : fail(`app version (${version}) and sw.js cache (${swCache}) must match`);
+
+    await page.click('[data-open]');
+    await page.fill("#wIn", "50"); await page.fill("#rIn", "10");
+    await page.click('#logForm button[type="submit"]');
+    await page.evaluate(() => document.getElementById("sheet").close());
+
+    // Publish a "new version" while the old page is still cached by the host for 10 minutes.
+    const html = fs.readFileSync(path.join(dir, "index.html"), "utf8");
+    fs.writeFileSync(path.join(dir, "index.html"), html.replace(/(<meta name="app-version" content=")[^"]+/, "$1test-next"));
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    const banner = await page.waitForSelector("#updateBar:not([hidden])", { timeout: 4000 }).then(() => true, () => false);
+    banner ? pass("shows 'new version' when the app is reopened") : fail("no update notice after a new version was published");
+
+    await page.reload();
+    const after = await page.evaluate(() => document.querySelector('meta[name="app-version"]')?.content);
+    after === "test-next" ? pass("reload gets the new version despite the host's 10-minute cache") : fail(`still on the old version after reload (${after})`);
+    const kept = await page.evaluate(() => Object.keys(Store.logs).length);
+    kept === 1 ? pass("logged workouts survive the update") : fail(`logged workouts after update: ${kept} (expected 1)`);
+
+    await ctx.setOffline(true);
+    await page.reload();
+    const offline = await page.evaluate(() => !!document.querySelector("main#view").children.length);
+    offline ? pass("opens offline") : fail("doesn't open offline");
+  } finally {
+    await ctx.close();
+    server.close();
+  }
+}
+
+const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
+const { server, url } = await serve(ROOT);
+try {
+  await layoutTests(browser, url);
+  if (!process.argv.includes("--layout-only")) await updateTests(browser);
+} finally {
+  server.close();
+  await browser.close();
+}
+console.log(failures.length ? `\n${failures.length} problem(s) found.` : "\nAll checks passed.");
+process.exit(failures.length ? 1 : 0);
