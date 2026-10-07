@@ -695,11 +695,16 @@ async function trapsAndWeeklyTests(browser, url) {
       openSheet("lu-raise");
       const main = [...document.querySelectorAll("dialog[open] .musc .mchip.p")].map(c => c.textContent).join();
       const top = solve(poseAt(EXMAP["lu-raise"], 1)), handsUp = top.armL[2][1] < top.head[1] && top.armR[2][1] < top.head[1];
+      const lists = Object.fromEntries([...document.querySelectorAll("dialog[open] .cols > div")].map(d => [d.querySelector("h3").textContent, [...d.querySelectorAll("li")].map(li => li.textContent)]));
+      const pulley = document.querySelector("dialog[open] .pulley-fact .v").textContent;
       document.getElementById("sheet").close();
-      return { main, handsUp, thu: Store.state.plan.thu.items.map(x => x.id) };
+      return { main, handsUp, pulley, setup: lists.Setup[0], middle: lists["Common mistakes"].some(m => m.startsWith("Pulleys in the middle")), thu: Store.state.plan.thu.items.map(x => x.id) };
     });
     r.main === "Side delts,Traps" && r.handsUp && r.thu.includes("lu-raise") && !r.thu.includes("cross-lateral")
       ? pass("Lu raise: side delts and traps, hands finish above the head, on Thursday") : fail(`Lu raise: ${JSON.stringify(r)}`);
+    // Low pulleys keep the cables working against you overhead; from the middle they stop resisting past shoulder height.
+    r.pulley === "Low" && r.setup.includes("at the bottom, not the middle") && r.middle
+      ? pass("Lu raise: pulleys at the bottom, and the screen warns against the middle") : fail(`Lu raise pulley: ${JSON.stringify(r)}`);
     await ctx.close();
   }
   {
