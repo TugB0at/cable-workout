@@ -104,7 +104,7 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin
 .fig .arrow { fill: var(--cable); }
 .fig .limb { fill: none; stroke: var(--fig); stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
 .fig .limb.far { stroke: var(--fig-far); }
-.fig .torso { fill: none; stroke: var(--fig); stroke-width: 14; stroke-linecap: round; }
+.fig .torso { fill: none; stroke: var(--fig); stroke-width: 14; stroke-linecap: round; stroke-linejoin: round; }
 .fig .torso-f { fill: var(--fig); stroke: var(--fig); stroke-width: 6; stroke-linejoin: round; }
 .fig .head { fill: var(--fig); }
 .fig .lbl { fill: var(--muted); font: 600 10px var(--font-body); letter-spacing: .06em; text-transform: uppercase; }
@@ -135,6 +135,7 @@ dialog.sheet::backdrop { background: rgb(0 0 0 / .5); }
 .sheet-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
 .fig-wrap { display: grid; gap: 8px; }
 #sheetFig .fig { max-height: 46vh; }
+.demo { justify-self: start; font-weight: 600; font-size: 14px; color: var(--ink); text-decoration: underline; text-decoration-color: var(--cable); text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .fig-ctrl { display: flex; gap: 10px; align-items: center; }
 .fig-ctrl input[type="range"] { flex: 1; accent-color: var(--cable); }
 .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
@@ -252,6 +253,7 @@ const LEVELS = {
   waist: { y: 134, name: "Waist", where: "About hip / belt height" },
   chest: { y: 98,  name: "Chest", where: "About mid-chest height" },
   head:  { y: 66,  name: "Head",  where: "About forehead height" },
+  above: { y: 44,  name: "Above head", where: "Just above the top of your head" },
   high:  { y: 36,  name: "High",  where: "Highest setting, above your head" },
 };
 const GROUPS = { push: "Push", pull: "Pull", legs: "Legs", core: "Core" };
@@ -261,7 +263,7 @@ const EX = [
     id: "chest-press", name: "Standing cable chest press", group: "push",
     muscles: "Chest, front delts, triceps", level: "chest", attach: "Two D-handles",
     position: "Facing away, between the towers, staggered stance",
-    view: "side", machine: "left", grip: "hands",
+    view: "side", machine: "left", grip: "hands", pair: true,
     setup: ["Set both pulleys at chest height.", "Grab a handle in each hand and step forward until the stack lifts off.", "Stagger your feet, lean slightly forward, hands beside your chest."],
     steps: ["Press both handles straight forward until your arms are nearly locked.", "Let the hands come slightly together at the end.", "Return slowly until your elbows are just behind your torso."],
     cues: ["Ribs down, slight forward lean", "Elbows about 45° from your body", "Exhale as you press"],
@@ -284,14 +286,14 @@ const EX = [
   {
     id: "fly-low", name: "Low-to-high cable fly", group: "push",
     muscles: "Upper chest, front delts", level: "low", attach: "Two D-handles",
-    position: "Centered between the towers",
-    view: "front", machine: "both", grip: "split",
-    setup: ["Set both pulleys at the bottom.", "Take a handle in each hand and step forward to the middle.", "Arms low and slightly out, palms facing forward."],
+    position: "Facing away, centered between the towers",
+    view: "side", machine: "left", grip: "hands", pair: true,
+    setup: ["Set both pulleys at the bottom.", "Take a handle in each hand, face away and step forward to the middle.", "Arms low and slightly behind you, palms facing forward."],
     steps: ["Sweep the hands up and together in front of you, finishing at upper-chest height.", "Squeeze for a second.", "Lower slowly back out and down."],
     cues: ["Lift with the chest, not the shoulders", "Keep a soft, fixed bend in the elbows"],
     mistakes: ["Shrugging the shoulders up", "Hands finishing above your face"],
-    a: { view: "front", x: 160, anchor: "hip", t: 0, aL: [35, 30], aR: [35, 30], lL: [6, 3], lR: [6, 3] },
-    b: { aL: [90, 220], aR: [90, 220], sL: [0.3, 0.8], sR: [0.3, 0.8] },
+    a: { f: 1, x: 175, anchor: "L", t: 8, aL: [-28, -18], aR: [-28, -18], lL: [18, 2], lR: [-18, -22] },
+    b: { aL: [72, 92], aR: [72, 92] },
   },
   {
     id: "lateral-raise", name: "Single-arm cable lateral raise", group: "push",
@@ -367,15 +369,15 @@ const EX = [
   },
   {
     id: "face-pull", name: "Face pull", group: "pull",
-    muscles: "Rear delts, upper back, rotator cuff", level: "head", attach: "Rope",
-    position: "Facing the tower",
-    view: "side", machine: "left", grip: "hands",
-    setup: ["Set the pulley at forehead height or a little above.", "Grab the rope with thumbs pointing back toward you.", "Step back until your arms are straight."],
+    muscles: "Rear delts, upper back, rotator cuff", level: "above", attach: "Rope",
+    position: "Facing the tower, a big step back",
+    view: "rear", machine: "behind", grip: "split",
+    setup: ["Set the pulley just above head height.", "Grab the rope with thumbs pointing back toward you.", "Step back until your arms are straight."],
     steps: ["Pull the rope toward your face, splitting the ends past your ears.", "Finish with elbows high and hands beside your head.", "Return slowly."],
     cues: ["Elbows stay high, level with shoulders", "Think: show your biceps"],
     mistakes: ["Pulling to the chest instead of the face", "Going too heavy and leaning back"],
-    a: { f: -1, x: 150, anchor: "L", t: -4, aL: [108, 108], aR: [108, 108], lL: [8, -4], lR: [-8, -10] },
-    b: { aL: [100, 168], aR: [100, 168], sL: [0.35, 1], sR: [0.35, 1] },
+    a: { view: "rear", x: 160, anchor: "hip", t: 0, aL: [60, -120], aR: [60, -120], sL: [0.25, 0.7], sR: [0.25, 0.7], lL: [6, 3], lR: [6, 3] },
+    b: { aL: [90, -180], aR: [90, -180], sL: [1, 1], sR: [1, 1] },
   },
   {
     id: "straight-arm", name: "Straight-arm pulldown", group: "pull",
@@ -470,8 +472,8 @@ const EX = [
     steps: ["Curl your torso down, bringing your elbows toward your thighs.", "Exhale and squeeze the abs.", "Uncurl slowly back up."],
     cues: ["Round the spine, keep the hips still", "Hands stay fixed by your head"],
     mistakes: ["Sitting back onto your heels", "Pulling with the arms"],
-    a: { f: -1, x: 120, anchor: "hip", t: 8, aL: [150, -22], aR: [150, -22], lL: [0, -90], lR: [0, -90] },
-    b: { t: 66, aL: [92, -80], aR: [92, -80] },
+    a: { f: -1, x: 120, anchor: "hip", t: 8, t2: 8, aL: [150, -22], aR: [150, -22], lL: [0, -90], lR: [0, -90] },
+    b: { t: 30, t2: 100, aL: [58, -114], aR: [58, -114] },
   },
   {
     id: "woodchop", name: "High-to-low woodchop", group: "core",
@@ -482,12 +484,13 @@ const EX = [
     steps: ["Pull the handle diagonally down across your body to the far hip.", "Rotate through your torso and pivot the back foot.", "Return slowly up to the pulley. Do all reps, then switch sides."],
     cues: ["Arms stay fairly straight, the trunk turns", "Brace before each rep"],
     mistakes: ["Pulling only with the arms", "Rushing the return"],
-    a: { view: "front", x: 175, anchor: "hip", t: 0, aL: [130, 155], aR: [-125, -120], lL: [14, 4], lR: [14, 4] },
-    b: { aL: [-58, -52], aR: [28, 30] },
+    a: { view: "front", x: 175, anchor: "hip", t: 0, tilt: -10, tw: 11, hT: [-34, -90], aL: [0, 0], aR: [0, 0], lL: [12, 2], lR: [14, 4] },
+    m: { tilt: 0, tw: 17, hT: [-2, -36] },
+    b: { tilt: 8, tw: 11, hT: [24, -6], lL: [4, -14], lR: [16, 6] },
   },
 ];
 const EXMAP = Object.fromEntries(EX.map(e => [e.id, e]));
-for (const e of EX) e.b = Object.assign({}, e.a, e.b);
+for (const e of EX) { if (e.m) e.m = Object.assign({}, e.a, e.m); e.b = Object.assign({}, e.a, e.m || {}, e.b); }
 
 const DAYS = [
   ["mon", "Monday"], ["tue", "Tuesday"], ["wed", "Wednesday"], ["thu", "Thursday"],
@@ -530,23 +533,42 @@ function interp(a, b, k) {
   return o;
 }
 
+function poseAt(ex, k) {
+  if (!ex.m) return interp(ex.a, ex.b, k);
+  return k < 0.5 ? interp(ex.a, ex.m, k * 2) : interp(ex.m, ex.b, k * 2 - 1);
+}
 function solve(p) {
-  const front = p.view === "front";
+  const front = p.view === "front" || p.view === "rear";
   const hip = [0, 0];
-  let sh, neckEnd, head, hipL, hipR, shL, shR, torsoDir;
+  let sh, mid, neckEnd, head, hipL, hipR, shL, shR;
   if (front) {
-    shL = [-17, -L.torso]; shR = [17, -L.torso]; hipL = [-9, 0]; hipR = [9, 0];
-    neckEnd = [0, -L.torso - L.neck]; head = [0, -L.torso - L.neck - L.head];
+    // tilt leans the trunk sideways; a narrower shoulder line (tw) reads as the trunk turning
+    const u = [Math.sin(rad(p.tilt || 0)), -Math.cos(rad(p.tilt || 0))], q = [-u[1], u[0]], tw = p.tw ?? 17;
+    const sc = add(hip, u, L.torso);
+    shL = add(sc, q, -tw); shR = add(sc, q, tw); hipL = [-9, 0]; hipR = [9, 0];
+    neckEnd = add(sc, u, L.neck); head = add(sc, u, L.neck + L.head); sh = sc;
   } else {
-    torsoDir = [Math.sin(rad(p.t)) * p.f, -Math.cos(rad(p.t))];
-    sh = add(hip, torsoDir, L.torso);
-    neckEnd = add(sh, torsoDir, L.neck);
-    head = add(sh, torsoDir, L.neck + L.head);
+    // two trunk segments so the spine can round (t = lower back, t2 = upper back)
+    const lo = [Math.sin(rad(p.t)) * p.f, -Math.cos(rad(p.t))];
+    const t2 = p.t2 ?? p.t, up = [Math.sin(rad(t2)) * p.f, -Math.cos(rad(t2))];
+    mid = add(hip, lo, L.torso / 2);
+    sh = add(mid, up, L.torso / 2);
+    neckEnd = add(sh, up, L.neck);
+    head = add(sh, up, L.neck + L.head);
     shL = shR = sh; hipL = hipR = hip;
   }
   const arm = (s, ang, f, sc = [1, 1]) => {
     const el = add(s, dirv(ang[0], f), L.ua * sc[0]);
     return [s, el, add(el, dirv(ang[1], f), L.fa * sc[1])];
+  };
+  // Two-bone reach: both hands on one handle at point hT (relative to the hip).
+  const reach = (s, t) => {
+    const dx = t[0] - s[0], dy = t[1] - s[1], a = L.ua, b = L.fa;
+    const d = Math.min(Math.max(Math.hypot(dx, dy), Math.abs(a - b) + 0.01), a + b - 0.01);
+    const base = Math.atan2(dy, dx), off = Math.acos((a * a + d * d - b * b) / (2 * a * d));
+    const els = [base + off, base - off].map(th => [s[0] + Math.cos(th) * a, s[1] + Math.sin(th) * a]);
+    const el = els[0][1] > els[1][1] ? els[0] : els[1];          // elbow hangs low
+    return [s, el, [s[0] + Math.cos(base) * d, s[1] + Math.sin(base) * d]];
   };
   const leg = (h, ang, f) => {
     const kn = add(h, dirv(ang[0], f), L.th);
@@ -556,8 +578,9 @@ function solve(p) {
   };
   const fL = front ? -1 : p.f, fR = front ? 1 : p.f;
   const pts = {
-    front, hip, sh, neckEnd, head, shL, shR,
-    armL: arm(shL, p.aL, fL, p.sL), armR: arm(shR, p.aR, fR, p.sR),
+    front, view: p.view || "side", hip, mid, sh, neckEnd, head, shL, shR,
+    armL: p.hT ? reach(shL, p.hT) : arm(shL, p.aL, fL, p.sL),
+    armR: p.hT ? reach(shR, p.hT) : arm(shR, p.aR, fR, p.sR),
     legL: leg(hipL, p.lL, fL), legR: leg(hipR, p.lR, fR),
   };
   // Ground the figure: lowest ankle or knee touches the floor.
@@ -567,7 +590,7 @@ function solve(p) {
   if (p.anchor === "L") dx = p.x - pts.legL[2][0];
   else if (p.anchor === "R") dx = p.x - pts.legR[2][0];
   const mv = q => [q[0] + dx, q[1] + dy];
-  for (const k of ["hip", "sh", "neckEnd", "head", "shL", "shR"]) if (pts[k]) pts[k] = mv(pts[k]);
+  for (const k of ["hip", "mid", "sh", "neckEnd", "head", "shL", "shR"]) if (pts[k]) pts[k] = mv(pts[k]);
   for (const k of ["armL", "armR", "legL", "legR"]) pts[k] = pts[k].map(mv);
   return pts;
 }
@@ -585,6 +608,7 @@ function gripPoints(ex, pts) {
 }
 function pulleyPoints(ex) {
   const y = LEVELS[ex.level].y;
+  if (ex.machine === "behind") return [[160, y]];
   return ex.machine === "both" ? [[38, y], [282, y]] : [[38, y]];
 }
 
@@ -602,9 +626,9 @@ function makeDiagram(ex, opts = {}) {
   const svg = sv("svg", { viewBox: "0 0 320 240", class: "fig", role: "img",
     "aria-label": `${ex.name}: pulley at ${LEVELS[ex.level].name.toLowerCase()} height. ${ex.position}.` });
   const lvl = LEVELS[ex.level];
-  const towers = ex.machine === "both" ? [10, 288] : [10];
+  const towers = ex.machine === "both" ? [10, 288] : ex.machine === "behind" ? [149] : [10];
   // height guide behind everything
-  sv("line", { x1: 40, y1: lvl.y, x2: ex.machine === "both" ? 280 : 316, y2: lvl.y, class: "guide" }, svg);
+  sv("line", { x1: ex.machine === "behind" ? 4 : 40, y1: lvl.y, x2: ex.machine === "both" ? 280 : 316, y2: lvl.y, class: "guide" }, svg);
   for (const tx of towers) {
     sv("rect", { x: tx, y: 24, width: 22, height: FLOOR - 24, rx: 3, class: "tower" }, svg);
     for (let y = 32; y <= 212; y += 9) sv("line", { x1: tx + 5, y1: y, x2: tx + 17, y2: y, class: "tick" }, svg);
@@ -612,22 +636,27 @@ function makeDiagram(ex, opts = {}) {
   }
   sv("line", { x1: 0, y1: FLOOR, x2: 320, y2: FLOOR, class: "floor" }, svg);
   const label = sv("text", { x: ex.machine === "both" ? 160 : 314, y: 16, class: "lbl", "text-anchor": ex.machine === "both" ? "middle" : "end" }, svg);
-  label.textContent = (ex.view === "front" ? "Front view" : "Side view") + " · pulley " + lvl.name;
+  label.textContent = ({ front: "Front view", rear: "View from behind" }[ex.view] || "Side view") + " · pulley " + lvl.name;
+  if (ex.pair) {
+    const n = sv("text", { x: 314, y: 30, class: "lbl", "text-anchor": "end" }, svg);
+    n.textContent = "Both pulleys · one shown";
+  }
 
   // motion path of the grip
   const trailPts = [[], []];
   for (let i = 0; i <= 24; i++) {
-    const g = gripPoints(ex, solve(interp(ex.a, ex.b, i / 24)));
+    const g = gripPoints(ex, solve(poseAt(ex, i / 24)));
     g.forEach((q, j) => trailPts[j].push(q));
   }
   const g = sv("g", {}, svg);
-  const front = ex.view === "front";
+  const front = ex.view === "front" || ex.view === "rear";
   const parts = {};
-  parts.cables = pulleyPoints(ex).map(() => sv("line", { class: "cable" }, g));
+  const nCables = Math.max(pulleyPoints(ex).length, ex.grip === "split" ? 2 : 1);
+  parts.cables = Array.from({ length: nCables }, () => sv("line", { class: "cable" }, g));
   if (!front) {
     parts.farLeg = sv("polyline", { class: "limb far" }, g);
     parts.farArm = sv("polyline", { class: "limb far" }, g);
-    parts.torso = sv("line", { class: "torso" }, g);
+    parts.torso = sv("polyline", { class: "torso" }, g);
     parts.neck = sv("line", { class: "limb" }, g);
     parts.nearLeg = sv("polyline", { class: "limb" }, g);
   } else {
@@ -661,14 +690,14 @@ function setLine(n, a, b) { n.setAttribute("x1", a[0]); n.setAttribute("y1", a[1
 function drawDiagram(d, k) {
   d.k = k;
   const { ex, parts } = d;
-  const pts = solve(interp(ex.a, ex.b, k));
+  const pts = solve(poseAt(ex, k));
   const grips = gripPoints(ex, pts);
   const pulleys = pulleyPoints(ex);
-  parts.cables.forEach((c, i) => setLine(c, [pulleys[i][0] + 2, pulleys[i][1]], grips[Math.min(i, grips.length - 1)]));
+  parts.cables.forEach((c, i) => { const pp = pulleys[Math.min(i, pulleys.length - 1)]; setLine(c, [pp[0] + 2, pp[1]], grips[Math.min(i, grips.length - 1)]); });
   if (!pts.front) {
     parts.farLeg.setAttribute("points", P(pts.legR));
     parts.farArm.setAttribute("points", P(pts.armR));
-    setLine(parts.torso, pts.hip, pts.sh);
+    parts.torso.setAttribute("points", P([pts.hip, pts.mid, pts.sh]));
     setLine(parts.neck, pts.sh, pts.neckEnd);
     parts.nearLeg.setAttribute("points", P(pts.legL));
     parts.nearArm.setAttribute("points", P(pts.armL));
@@ -676,7 +705,7 @@ function drawDiagram(d, k) {
     parts.legL.setAttribute("points", P(pts.legL));
     parts.legR.setAttribute("points", P(pts.legR));
     parts.torsoF.setAttribute("points", P([pts.shL, pts.shR, pts.legR[0], pts.legL[0]]));
-    setLine(parts.neck, [(pts.shL[0] + pts.shR[0]) / 2, pts.shL[1]], pts.neckEnd);
+    setLine(parts.neck, pts.sh, pts.neckEnd);
     parts.armL.setAttribute("points", P(pts.armL));
     parts.nearArm.setAttribute("points", P(pts.armR));
   }
@@ -1037,6 +1066,7 @@ function renderSheet() {
         <input type="range" id="scrub" min="0" max="100" value="0" aria-label="Scrub through the movement">
         <span class="muted" style="font-size:12px;white-space:nowrap">start → finish</span>
       </div>
+      <a class="demo" href="https://www.youtube.com/results?search_query=${encodeURIComponent(ex.name + " cable exercise proper form")}" target="_blank" rel="noopener">Watch a demo on YouTube ↗</a>
     </div>
     <div class="facts">
       <div class="fact pulley-fact"><div class="k">Pulley height</div><div class="v">${lvl.name}</div><div class="s">${lvl.where}</div></div>

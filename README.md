@@ -4,6 +4,7 @@ A private, single-page web app for training on a cable machine.
 
 - **Today**: the exercises planned for this weekday, your last numbers, and how many sets you've done.
 - **Exercise library**: 19 cable exercises. Each has an animated diagram that shows where to set the pulley (the yellow block on the tower), where you stand, and the path your hands or ankle travel. The detail view adds setup steps, movement steps, cues, common mistakes, and a field for your own machine's pin setting.
+- **Demo links**: each exercise links to a YouTube search so you can watch a real person do it.
 - **Plan**: an editable weekly plan with sets and rep ranges per exercise.
 - **Progress**: workouts per week, a 16-week activity grid, a strength chart per exercise (heaviest set and estimated 1-rep max), and recent history.
 - **Progression hints**: once you hit the top of your rep range on every set, the app tells you to add weight.
