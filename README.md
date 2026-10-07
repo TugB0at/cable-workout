@@ -3,7 +3,7 @@
 A single-page workout app for training on a REP Arcadia functional trainer (upgraded stacks, Performance and Pro Series attachment packages). Every exercise works both arms or both legs at once.
 
 - **Today**: the exercises planned for this weekday, your last numbers, and how many sets you've done.
-- **Exercise library**: 19 cable exercises, each matched to an Arcadia attachment. Each has an animated diagram that shows where to set the pulley (the yellow block on the tower), where you stand, and the path your hands or ankle travel. The detail view adds setup steps, movement steps, cues, common mistakes, and a field for your own machine's pin setting.
+- **Exercise library**: 20 cable exercises, each matched to an Arcadia attachment. Each has an animated diagram that shows where to set the pulley (the yellow block on the tower), where you stand, and the path your hands or ankle travel. The detail view adds setup steps, movement steps, cues, common mistakes, and a field for your own machine's pin setting.
 - **Demo links**: each exercise links to a YouTube search so you can watch a real person do it.
 - **Attachment drawings**: each exercise shows a drawing of the attachment to clip on, and the Exercises tab lists every attachment you own with the exercises that use it.
 - **On your phone**: bottom tab bar, full-screen exercise view, a rest timer that buzzes when rest is over, the screen stays on while you train, and a "Next exercise" button to move through the workout.
@@ -12,6 +12,7 @@ A single-page workout app for training on a REP Arcadia functional trainer (upgr
 - **Progression hints**: once you hit the top of your rep range on every set, the app tells you to add weight.
 - **Sets and exercises turn green** as you finish them, with a progress bar for the day's workout.
 - **Muscles worked**: a front-and-back body map and muscle list for each workout and exercise.
+- **Sets per muscle**: Progress shows each muscle's sets this week (or last week) against the plan, with the common 10–20 sets a week target. A set counts 1 for its main muscles and ½ for the ones it also works.
 - **Missed days**: pick any past date on Today (or tap Edit on a past workout in Progress) to log or fix it.
 - **Personal records and workout summary**: heavier-than-ever sets get a PR badge, and Finish workout shows time, sets, pounds lifted, new records and how it compares with last time.
 - **Calories burned (estimate)**: the summary estimates calories as 3.5 METs (resistance training, 2024 Adult Compendium of Physical Activities) × body weight × workout time. Enter body weight once in the summary or in Progress → Settings.

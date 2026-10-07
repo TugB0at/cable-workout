@@ -603,6 +603,46 @@ async function reviewFixTests(browser, url) {
   }
 }
 
+// The cable shrug (traps) and the weekly sets-per-muscle card.
+async function trapsAndWeeklyTests(browser, url) {
+  console.log("\nTraps and weekly sets");
+  const mobile = { viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, reducedMotion: "reduce" };
+  {
+    const ctx = await browser.newContext(mobile), page = await ctx.newPage();
+    await page.goto(url);
+    const r = await page.evaluate(() => {
+      openSheet("shrug");
+      const main = [...document.querySelectorAll("dialog[open] .musc .mchip.p")].map(c => c.textContent).join();
+      const shaded = document.querySelectorAll("dialog[open] .musc .mm .p").length;
+      document.getElementById("sheet").close();
+      return { main, shaded, tue: Store.state.plan.tue.items.map(x => x.id).includes("shrug"), count: EX.length };
+    });
+    r.main === "Traps" && r.shaded >= 3 && r.tue && r.count === 20 ? pass("cable shrug: works the traps (shaded front and back), on Tuesday's plan") : fail(`shrug: ${JSON.stringify(r)}`);
+    // Log 3 sets of chest press this week: chest 3 (main), front delts and triceps 1½ each (also worked).
+    await tap(page, '[data-day="mon"]', "Monday"); await tap(page, '[data-open="chest-press"]', "chest press");
+    for (const reps of ["10", "10", "10"]) { await page.fill("#wIn", "100"); await page.fill("#rIn", reps); await tap(page, '#logForm button[type="submit"]', "Log set"); }
+    await page.evaluate(() => document.getElementById("sheet").close()); await page.waitForTimeout(300);
+    await tap(page, 'nav.tabs [data-tab="progress"]', "the progress tab");
+    const rows = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll(".ms-row")].map(r => [r.querySelector(".ms-name").textContent, r.querySelector(".ms-val").textContent])));
+    rows.Chest === "3/10" && rows["Front delts"] === "1½/11" && rows.Triceps === "1½/10" && rows.Traps === "0/7½" && rows.Glutes === "0/19"
+      ? pass("sets per muscle this week: Chest 3/10, Front delts 1½/11, Triceps 1½/10") : fail(`sets per muscle: ${JSON.stringify(rows)}`);
+    await tap(page, '[data-week="-1"]', "Last week");
+    const last = await page.evaluate(() => document.querySelector(".ms-row .ms-val").textContent);
+    last === "0/10" ? pass("Last week shows last week's sets") : fail(`last week chest: ${last}`);
+    await ctx.close();
+  }
+  // A plan saved before the shrug existed gets it on Tuesday.
+  {
+    const ctx = await browser.newContext(mobile);
+    const old = { state: { units: "lb", planVersion: 3, plan: { tue: { title: "Pull", items: [{ id: "row", sets: 3, min: 8, max: 12 }] }, thu: { title: "Rest", items: [] } } }, logs: {} };
+    await ctx.addInitScript(([key, value]) => { if (!localStorage.getItem(key)) localStorage.setItem(key, value); }, [LS_KEY, JSON.stringify(old)]);
+    const page = await ctx.newPage(); await page.goto(url);
+    const tue = await page.evaluate(() => Store.state.plan.tue.items.map(x => x.id).join());
+    tue === "row,shrug" ? pass("saved plans get the shrug added to Tuesday") : fail(`saved plan Tuesday: ${tue}`);
+    await ctx.close();
+  }
+}
+
 async function updateTests(browser) {
   console.log("\nInstalled app: updates and offline");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tension-site-"));
@@ -670,6 +710,7 @@ try {
   await pastDayTests(browser, url);
   await bodyWeightTests(browser, url);
   await reviewFixTests(browser, url);
+  await trapsAndWeeklyTests(browser, url);
   if (!process.argv.includes("--layout-only")) await updateTests(browser);
 } finally {
   server.close();
