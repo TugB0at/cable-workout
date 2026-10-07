@@ -332,8 +332,24 @@ async function pastDayTests(browser, url) {
     }));
     const rec = sum.records.find(r => r.includes("Standing cable chest press") && r.includes("Heaviest set: 100 lb, up from 81"));
     sum.open && rec && sum.sets === "3" ? pass(`summary: 3 sets, "${rec}"`) : fail(`summary: ${JSON.stringify(sum)}`);
+    // Calories: asks for body weight once, then estimates (3 back-filled sets: ~7 min estimated).
+    const ask = await page.evaluate(() => !!document.querySelector("dialog[open] #bwIn"));
+    await page.fill("#bwIn", "200"); await tap(page, '[data-act="savebw"]', "Save body weight");
+    const est = await page.evaluate(() => document.querySelector("dialog[open] .cal-card")?.textContent.replace(/\s+/g, " ") || "");
+    ask && est.includes("≈ 37 calories") && est.includes("7 min (estimated") ? pass(`calories, estimated time: "${est.trim().slice(0, 60)}…"`) : fail(`calories (estimated): asked=${ask} "${est}"`);
     await back();
     (await page.evaluate(() => !document.querySelector("dialog[open]"))) ? pass("back closes the summary") : fail("summary still open after back");
+    // Measured time: two sets 40 minutes apart today, 200 lb body weight -> 3.5 x 90.7 kg x 41/60 h = 217.
+    const measured = await page.evaluate(() => {
+      const t0 = Date.now() - 40 * 60000, k = todayKey();
+      Store.logs[k] = { date: k, sets: { row: [{ w: 100, r: 10, t: t0 }, { w: 100, r: 10, t: t0 + 40 * 60000 }] } };
+      setLogDate(null); openSummary();
+      const r = { cal: document.querySelector("dialog[open] .cal-card")?.textContent.replace(/\s+/g, " ") || "", time: document.querySelector("dialog[open] .sum-stats .stat .v")?.textContent };
+      delete Store.logs[k]; document.getElementById("sheet").close();
+      return r;
+    });
+    await page.waitForTimeout(300);
+    measured.cal.includes("≈ 217 calories") && measured.time === "41 min" ? pass("calories, measured time: ≈ 217 for 41 min at 200 lb") : fail(`calories (measured): ${JSON.stringify(measured)}`);
 
     await tap(page, '[data-act="today"]', "Back to today");
     const now = await page.evaluate(() => ({ note: !!document.querySelector(".past-note"), key: logKey() === todayKey() }));

@@ -14,6 +14,7 @@ A single-page workout app for training on a REP Arcadia functional trainer (upgr
 - **Muscles worked**: a front-and-back body map and muscle list for each workout and exercise.
 - **Missed days**: pick any past date on Today (or tap Edit on a past workout in Progress) to log or fix it.
 - **Personal records and workout summary**: heavier-than-ever sets get a PR badge, and Finish workout shows time, sets, pounds lifted, new records and how it compares with last time.
+- **Calories burned (estimate)**: the summary estimates calories as 3.5 METs (resistance training, 2024 Adult Compendium of Physical Activities) × body weight × workout time. Enter body weight once in the summary or in Progress → Settings.
 
 ## Install it on Android
 

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#11161b">
-<meta name="app-version" content="2026.10.07-6">
+<meta name="app-version" content="2026.10.07-7">
 <meta name="description" content="Cable machine workouts by day, with pulley-height diagrams, set logging and progress charts.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -164,6 +164,14 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin
 .pr { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 6px; background: var(--accent); color: var(--accent-ink); font: 700 11px/1.4 var(--font-body); letter-spacing: .06em; vertical-align: 1px; }
 .sum-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .records, .sum-list { display: grid; gap: 6px; }
+.cal-card { display: grid; gap: 6px; padding: 12px 14px; border-radius: var(--r); border: 1px solid color-mix(in srgb, var(--cable) 50%, transparent);
+  background: color-mix(in srgb, var(--cable) 12%, var(--surface)); }
+.cal-card .cal-v { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.cal-card .cal-v b { font-family: var(--font-display); font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums; }
+.cal-card .cal-v span { font-weight: 600; }
+.cal-card .s { font-size: 13px; color: var(--muted); }
+.bw-row { display: flex; align-items: center; gap: 8px; }
+.bw-row input { width: 96px; min-height: 40px; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 6px 10px; font-family: var(--font-mono); font-size: 16px; }
 .record { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px;
   background: color-mix(in srgb, var(--accent) 14%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); }
 .record .nm, .sum-ex .nm { font-weight: 600; }
@@ -1115,7 +1123,8 @@ function normalizeState(s) {
   // v3: pounds by default (the Arcadia stack is marked in lb). Only keep kg if picked after that.
   const units = s.units === "kg" && (s.planVersion || 1) >= 3 ? "kg" : "lb";
   const rest = [60, 90, 120, 180].includes(s.rest) ? s.rest : 90;
-  return { units, plan, notes: s.notes || {}, rest, beep: s.beep !== false, planVersion: 3 };
+  const bodyWeight = +s.bodyWeight > 0 && +s.bodyWeight < 1000 ? +s.bodyWeight : null;
+  return { units, plan, notes: s.notes || {}, rest, beep: s.beep !== false, bodyWeight, planVersion: 3 };
 }
 
 /* ============================================================
@@ -1384,6 +1393,8 @@ function viewProgress() {
         <span class="muted" style="font-size:13px">Changes the label only. Numbers aren't converted.</span></div>
       <div class="row"><span>Rest timer</span><span class="seg">${[60, 90, 120, 180].map(v => `<button data-restdef="${v}" aria-pressed="${Store.state.rest === v}">${v < 120 ? v + " s" : v / 60 + " min"}</button>`).join("")}</span>
         <span class="muted" style="font-size:13px">Starts after each logged set.</span></div>
+      <div class="row"><label for="bwSet">Body weight</label><span class="bw-row"><input id="bwSet" type="number" inputmode="decimal" min="50" max="999" step="any" value="${Store.state.bodyWeight ?? ""}" placeholder="${unit()}"><span class="muted">${unit()}</span></span>
+        <span class="muted" style="font-size:13px">Only used to estimate calories burned.</span></div>
       <div class="row"><span>Beep when rest is over</span><span class="seg"><button data-beep="on" aria-pressed="${Store.state.beep !== false}">On</button><button data-beep="off" aria-pressed="${Store.state.beep === false}">Off</button></span>
         <span class="muted" style="font-size:13px">The screen also flashes, and phones that support it vibrate.</span></div>
       <div class="row"><button class="btn small" data-act="export">Export backup (.json)</button>
@@ -1430,6 +1441,23 @@ function openSheet(id) {
   renderSheet(); dlg.scrollTop = 0;
   keepAwake(true);
 }
+/* Calories: MET x body weight (kg) x hours. Resistance training with several exercises at
+   8-15 reps is 3.5 METs in the 2024 Adult Compendium of Physical Activities. Time is the
+   measured span of the workout plus a minute for the last set; back-filled days have no
+   timestamps, so their time is estimated from the sets and the rest timer setting. */
+const MET_RESISTANCE = 3.5;
+function workoutTime(date) {
+  const all = Object.values(Store.logs[date]?.sets || {}).flat();
+  const ts = all.map(x => x.t).filter(t => t && dateKey(new Date(t)) === date);
+  if (ts.length > 1) return { mins: Math.max(1, Math.round((Math.max(...ts) - Math.min(...ts)) / 60000)) + 1, measured: true };
+  return all.length ? { mins: Math.max(1, Math.round((all.length * ((Store.state.rest || 90) + 40)) / 60)), measured: false } : null;
+}
+function caloriesFor(date) {
+  const bw = Store.state.bodyWeight, time = workoutTime(date);
+  if (!bw || !time) return null;
+  const kg = unit() === "kg" ? bw : bw * 0.45359237;
+  return { kcal: Math.round(MET_RESISTANCE * kg * (time.mins / 60)), ...time, bw };
+}
 function openSummary() {
   ui.sheetMode = "summary";
   const dlg = document.getElementById("sheet");
@@ -1440,8 +1468,7 @@ function renderSummary() {
   const date = logKey(), log = Store.logs[date], sets = (log && log.sets) || {};
   const ids = Object.keys(sets).filter(id => sets[id].length && EXMAP[id]);
   const all = ids.flatMap(id => sets[id]);
-  const ts = all.map(x => x.t).filter(t => t && dateKey(new Date(t)) === date);
-  const mins = ts.length > 1 ? Math.max(1, Math.round((Math.max(...ts) - Math.min(...ts)) / 60000)) : null;
+  const time = workoutTime(date), cal = caloriesFor(date);
   const plan = Store.state.plan[ui.day] || { title: "", items: [] };
   const planned = plan.items.filter(x => EXMAP[x.id]);
   const doneN = planned.filter(x => setsOn(date, x.id).length >= x.sets).length;
@@ -1458,11 +1485,15 @@ function renderSummary() {
     <div class="muted"><b style="color:var(--ink)">${esc(title)}</b> · ${fmtDate(date, { weekday: "long", month: "long", day: "numeric" })}</div>
     ${ids.length ? `
     <div class="sum-stats">
-      <div class="stat"><div class="v">${mins ? mins + " min" : "–"}</div><div class="k">time</div></div>
+      <div class="stat"><div class="v">${time ? (time.measured ? "" : "~") + time.mins + " min" : "–"}</div><div class="k">${time && !time.measured ? "time (estimated)" : "time"}</div></div>
       <div class="stat"><div class="v">${all.length}</div><div class="k">sets</div></div>
       <div class="stat"><div class="v">${Math.round(volumeOf(all)).toLocaleString()}</div><div class="k">${unit()} lifted</div></div>
       <div class="stat"><div class="v">${planned.length ? `${doneN}/${planned.length}` : ids.length}</div><div class="k">exercises ${planned.length ? "finished" : "done"}</div></div>
     </div>
+    ${cal ? `<div class="cal-card"><div class="cal-v"><b>≈ ${cal.kcal.toLocaleString()}</b> <span>calories burned</span></div>
+      <div class="s">Estimate: ${MET_RESISTANCE} METs for resistance training × ${fmtW(cal.bw)} ${unit()} body weight × ${cal.mins} min${cal.measured ? "" : " (estimated from your sets and rest time)"}. It goes by time and body weight, not by how much you lift.</div></div>`
+    : `<div class="cal-card"><label for="bwIn" class="s" style="color:var(--ink);font-weight:600">Add your body weight to see calories burned</label>
+      <div class="bw-row"><input id="bwIn" type="number" inputmode="decimal" min="50" max="999" step="any" placeholder="${unit()}" aria-label="Body weight in ${unit()}"><span class="muted">${unit()}</span><button type="button" class="btn small" data-act="savebw">Save</button></div></div>`}
     <section class="stack" style="gap:8px">
       <h3>New records</h3>
       ${records.length ? `<div class="records">${records.map(r => `<div class="record"><span class="pr">PR</span><div><div class="nm">${esc(EXMAP[r.id].name)}</div><div class="s">${r.kind}: <b>${fmtW(r.now)} ${unit()}</b>, up from ${fmtW(r.was)}</div></div></div>`).join("")}</div>`
@@ -1701,6 +1732,7 @@ view.addEventListener("change", e => {
   if (t.dataset.title) { Store.state.plan[t.dataset.title].title = t.value.trim().slice(0, 40); Store.saveState(); return; }
   if (t.id === "chartEx") { ui.chartEx = t.value; return drawChart(); }
   if (t.id === "logDate") { setLogDate(t.value || null); return render(); }
+  if (t.id === "bwSet") { const v = parseFloat(t.value); Store.state.bodyWeight = v > 0 && v < 1000 ? v : null; Store.saveState(); return; }
   if (t.id === "importFile" && t.files[0]) {
     const r = new FileReader();
     r.onload = () => {
@@ -1743,6 +1775,11 @@ sheet.addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t) return;
   if (t.dataset.act === "close") return sheet.close();
   if (t.dataset.act === "finish") return openSummary();
+  if (t.dataset.act === "savebw") {
+    const v = parseFloat(document.getElementById("bwIn").value);
+    if (!(v > 0 && v < 1000)) { toast(`Enter your body weight in ${unit()}.`); return; }
+    Store.state.bodyWeight = v; Store.saveState(); renderSheet(); return;
+  }
   if (t.dataset.goto) { sheetEx = EXMAP[t.dataset.goto]; ui.sheetMode = "exercise"; renderSheet(); sheet.scrollTop = 0; return; }
   if (t.dataset.rest) return restAction(t.dataset.rest);
   if (t.dataset.act === "play") {
