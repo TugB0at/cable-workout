@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#11161b">
-<meta name="app-version" content="2026.10.07-2">
+<meta name="app-version" content="2026.10.07-3">
 <meta name="description" content="Cable machine workouts by day, with pulley-height diagrams, set logging and progress charts.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -175,7 +175,7 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin
 .rest h3 { color: var(--ink); margin-bottom: 6px; }
 
 /* Detail sheet */
-dialog.sheet { border: 0; padding: 0; width: min(760px, 100%); max-height: 100%; background: var(--bg); color: var(--ink); border-radius: 14px; }
+dialog.sheet { overflow-y: auto; overscroll-behavior: contain; border: 0; padding: 0; width: min(760px, 100%); max-height: 100%; background: var(--bg); color: var(--ink); border-radius: 14px; }
 dialog.sheet::backdrop { background: rgb(0 0 0 / .5); }
 .sheet-inner { padding: 18px 16px 24px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
 .sheet-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
@@ -268,6 +268,8 @@ ol.steps, ul.cues { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 4px
 .rest-bar .lbl { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; opacity: .8; }
 .rest-bar b { font-family: var(--font-mono); font-size: 22px; margin-right: auto; }
 .rest-bar button { border: 1px solid color-mix(in srgb, var(--bg) 40%, transparent); background: none; color: inherit; border-radius: 8px; padding: 8px 10px; font-weight: 600; cursor: pointer; min-height: 40px; }
+@keyframes rest-flash { 0%, 100% { box-shadow: inset 0 0 0 0 transparent; } 20%, 60% { box-shadow: inset 0 0 0 6px var(--accent); } }
+body.rest-done, body.rest-done dialog.sheet { animation: rest-flash 0.8s ease-in-out 2; }
 .sheet-nav { display: flex; gap: 8px; flex-wrap: wrap; }
 .sheet-nav .btn { flex: 1 1 140px; min-height: 44px; }
 button, a, input, select, label { touch-action: manipulation; }
@@ -900,7 +902,7 @@ function mountDiagrams(root) {
 const LS_KEY = "cable-workout-log-v1";   // keep: renaming this would lose saved workouts
 const Store = {
   mode: "loading", db: null, uid: null,
-  state: { units: "lb", plan: clone(DEFAULT_PLAN), notes: {}, rest: 90, planVersion: 3 },
+  state: { units: "lb", plan: clone(DEFAULT_PLAN), notes: {}, rest: 90, beep: true, planVersion: 3 },
   logs: {},
   timers: {}, chains: {},
   async init() {
@@ -970,7 +972,7 @@ function normalizeState(s) {
   // v3: pounds by default (the Arcadia stack is marked in lb). Only keep kg if picked after that.
   const units = s.units === "kg" && (s.planVersion || 1) >= 3 ? "kg" : "lb";
   const rest = [60, 90, 120, 180].includes(s.rest) ? s.rest : 90;
-  return { units, plan, notes: s.notes || {}, rest, planVersion: 3 };
+  return { units, plan, notes: s.notes || {}, rest, beep: s.beep !== false, planVersion: 3 };
 }
 
 /* ============================================================
@@ -1184,7 +1186,9 @@ function viewProgress() {
       <div class="row"><span>Weight units</span><span class="seg"><button data-units="lb" aria-pressed="${unit() === "lb"}">lb</button><button data-units="kg" aria-pressed="${unit() === "kg"}">kg</button></span>
         <span class="muted" style="font-size:13px">Changes the label only. Numbers aren't converted.</span></div>
       <div class="row"><span>Rest timer</span><span class="seg">${[60, 90, 120, 180].map(v => `<button data-restdef="${v}" aria-pressed="${Store.state.rest === v}">${v < 120 ? v + " s" : v / 60 + " min"}</button>`).join("")}</span>
-        <span class="muted" style="font-size:13px">Starts after each logged set. The phone buzzes when it's done.</span></div>
+        <span class="muted" style="font-size:13px">Starts after each logged set.</span></div>
+      <div class="row"><span>Beep when rest is over</span><span class="seg"><button data-beep="on" aria-pressed="${Store.state.beep !== false}">On</button><button data-beep="off" aria-pressed="${Store.state.beep === false}">Off</button></span>
+        <span class="muted" style="font-size:13px">The screen also flashes, and phones that support it vibrate.</span></div>
       <div class="row"><button class="btn small" data-act="export">Export backup (.json)</button>
         <label class="btn small" for="importFile">Import backup</label><input type="file" id="importFile" accept=".json,application/json" hidden></div>
       ${ui.confirm && ui.confirm.import ? `<div class="confirm">Replace everything here with the backup (${ui.confirm.import.days} workout days)? <button class="btn small danger" data-act="import-yes">Replace</button><button class="btn small" data-act="cancel">Cancel</button></div>` : ""}
@@ -1224,7 +1228,7 @@ let sheetEx = null, sheetDiagram = null;
 function openSheet(id) {
   sheetEx = EXMAP[id]; if (!sheetEx) return;
   const dlg = document.getElementById("sheet");
-  if (!dlg.open) dlg.showModal();
+  if (!dlg.open) { dlg.showModal(); hist.push({ tab: ui.tab, sheet: id }); }
   renderSheet(); dlg.scrollTop = 0;
   keepAwake(true);
 }
@@ -1305,10 +1309,28 @@ function startRest(sec) {
   clearInterval(rest.iv); rest.iv = setInterval(paintRest, 250);
   paintRest(); keepAwake(true);
 }
+// Sound needs a tap first, so the audio is unlocked when a set is logged.
+let audio = null;
+function unlockAudio() {
+  try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === "suspended") audio.resume(); } catch (e) { audio = null; }
+}
+function beep() {
+  if (!audio || Store.state.beep === false) return;
+  const t = audio.currentTime;
+  [0, 0.22, 0.44].forEach((d, i) => {
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = "sine"; o.frequency.value = i === 2 ? 1175 : 880;
+    g.gain.setValueAtTime(0.0001, t + d); g.gain.exponentialRampToValueAtTime(0.35, t + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.18);
+    o.connect(g).connect(audio.destination); o.start(t + d); o.stop(t + d + 0.2);
+  });
+}
 function stopRest(finished) {
   clearInterval(rest.iv); rest.end = 0; paintRest();
   if (finished) {
+    beep();
     try { navigator.vibrate && navigator.vibrate([250, 120, 250, 120, 400]); } catch (e) {}
+    document.body.classList.remove("rest-done"); void document.body.offsetWidth; document.body.classList.add("rest-done");
+    setTimeout(() => document.body.classList.remove("rest-done"), 1600);
     toast("Rest's over. Next set!");
   }
   if (!sheet.open) keepAwake(false);
@@ -1342,11 +1364,34 @@ document.addEventListener("visibilitychange", () => {
 /* ============================================================
    Events
    ============================================================ */
-document.querySelector("nav.tabs").addEventListener("click", e => {
-  const b = e.target.closest("[data-tab]"); if (!b) return;
-  ui.tab = b.dataset.tab; ui.confirm = null;
-  try { localStorage.setItem(LS_KEY + ":tab", ui.tab); } catch (err) {}
+/* Back button. Today is the bottom of the history stack, another tab sits on top of it,
+   and an open exercise on top of that. So back closes the exercise, then returns to
+   Today, and only leaves the app from Today. */
+const hist = {
+  push(state) { try { history.pushState(state, ""); } catch (e) {} },
+  replace(state) { try { history.replaceState(state, ""); } catch (e) {} },
+};
+function showTab(tab) {
+  ui.tab = tab; ui.confirm = null;
+  try { localStorage.setItem(LS_KEY + ":tab", tab); } catch (err) {}
   render(); window.scrollTo(0, 0);
+}
+document.querySelector("nav.tabs").addEventListener("click", e => {
+  const b = e.target.closest("[data-tab]"); if (!b || b.dataset.tab === ui.tab) return;
+  const to = b.dataset.tab;
+  if (ui.tab === "today") hist.push({ tab: to });
+  else if (to === "today") {
+    if (history.state && history.state.tab === ui.tab) { history.back(); return; }   // popstate shows Today
+    hist.replace({ tab: "today" });
+  }
+  else hist.replace({ tab: to });
+  showTab(to);
+});
+window.addEventListener("popstate", e => {
+  const st = e.state || { tab: "today" };
+  if (sheet.open && !st.sheet) sheet.close();
+  if (st.sheet && !sheet.open) hist.replace({ tab: st.tab || "today" });   // forward into a closed exercise
+  if (st.tab && st.tab !== ui.tab) showTab(st.tab);
 });
 
 const view = document.getElementById("view");
@@ -1358,6 +1403,7 @@ view.addEventListener("click", e => {
     return openSheet(ds.open);
   }
   if (ds.restdef) { Store.state.rest = +ds.restdef; Store.saveState(); return render(); }
+  if (ds.beep) { Store.state.beep = ds.beep === "on"; Store.saveState(); if (Store.state.beep) { unlockAudio(); beep(); } return render(); }
   if (ds.day) { ui.day = ds.day; return render(); }
   if (ds.group) { ui.group = ds.group; return render(); }
   const plan = Store.state.plan;
@@ -1452,7 +1498,10 @@ sheet.addEventListener("click", e => {
     Store.saveLog(d); renderSheet(); render(); return;
   }
 });
-sheet.addEventListener("close", () => { paintRest(); if (!rest.end) keepAwake(false); });
+sheet.addEventListener("close", () => {
+  paintRest(); if (!rest.end) keepAwake(false);
+  if (history.state && history.state.sheet) history.back();   // closed with ✕, Finish or Esc: drop its history entry
+});
 sheet.addEventListener("input", e => {
   if (e.target.id === "scrub") { sheetDiagram.manual = true; document.getElementById("playBtn").textContent = "Play"; drawDiagram(sheetDiagram, e.target.value / 100); }
 });
@@ -1474,12 +1523,22 @@ sheet.addEventListener("submit", e => {
   const n = setsOn(d, sheetEx.id).length, target = planItemFor(sheetEx.id).sets;
   toast(n >= target ? `Set ${n} logged. That's all ${target} sets.` : `Set ${n} of ${target} logged`);
   renderSheet(); render();
+  unlockAudio();
   startRest(Store.state.rest || 90);
 });
 
 /* ============================================================
    Boot
    ============================================================ */
+// Start with Today at the bottom of the history stack, so back from any tab returns to it.
+// After a reload the stack already exists; just pick up where it was (minus an open exercise).
+if (history.state && history.state.tab) {
+  ui.tab = history.state.tab;
+  if (history.state.sheet) hist.replace({ tab: ui.tab });
+} else {
+  hist.replace({ tab: "today" });
+  if (ui.tab !== "today") hist.push({ tab: ui.tab });
+}
 render();
 Store.init().then(() => { updateStatus(); render(); });
 </script>
@@ -1490,7 +1549,10 @@ Store.init().then(() => { updateStatus(); render(); });
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
-if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+document.addEventListener("submit", e => {
+  if (e.target.id !== "logForm" || !(navigator.storage && navigator.storage.persist)) return;
+  navigator.storage.persisted().then(p => p || navigator.storage.persist()).catch(() => {});
+}, { capture: true });
 
 // Updates: when the app is opened again, check whether a newer version is online and offer it.
 async function checkForUpdate() {

@@ -185,6 +185,61 @@ async function layoutTests(browser, url) {
   }
 }
 
+// Android's back button is a history step. It should close the exercise view (and return
+// to Today from other tabs) instead of leaving the app.
+async function backButtonTests(browser, url) {
+  console.log("\nBack button");
+  const ctx = await browser.newContext({ viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, reducedMotion: "reduce" });
+  const page = await ctx.newPage();
+  const back = async () => { await page.evaluate(() => history.back()); await page.waitForTimeout(300); };
+  const state = () => page.evaluate(() => ({ open: !!document.querySelector("dialog[open]"), tab: ui.tab, title: document.querySelector("dialog[open] h2")?.textContent || "", len: history.length, url: location.href }));
+  try {
+    await page.goto(url);
+    const start = await state();
+    await tap(page, '[data-day="mon"]', "Monday");
+    await tap(page, '[data-open="chest-press"]', "the first exercise");
+    let s = await state();
+    if (!s.open) throw new Error("exercise view didn't open");
+    await back(); s = await state();
+    !s.open && s.tab === "today" && s.url === start.url ? pass("back closes the exercise and stays in the app") : fail(`back from an exercise: open=${s.open}, tab=${s.tab}, url=${s.url}`);
+
+    await tap(page, '[data-open="chest-press"]', "the first exercise");
+    await tap(page, "[data-goto]", "Next exercise");
+    s = await state();
+    const nextTitle = s.title;
+    await back(); s = await state();
+    !s.open ? pass(`back after "Next" closes the exercise (was on ${nextTitle})`) : fail(`back after "Next" left the view open on ${s.title}`);
+
+    for (const tab of ["plan", "library", "progress"]) {
+      await tap(page, `nav.tabs [data-tab="${tab}"]`, `the ${tab} tab`);
+      await back(); s = await state();
+      s.tab === "today" && s.url === start.url ? pass(`back from ${tab} returns to Today`) : fail(`back from ${tab}: now on ${s.tab}, url ${s.url}`);
+    }
+    await tap(page, 'nav.tabs [data-tab="plan"]', "the plan tab");
+    await tap(page, 'nav.tabs [data-tab="library"]', "the library tab");
+    await back(); s = await state();
+    s.tab === "today" ? pass("back from a second tab still returns to Today") : fail(`Plan then Exercises then back: on ${s.tab}`);
+
+    const before = (await state()).len;
+    await tap(page, '[data-open="chest-press"]', "the first exercise");
+    await tap(page, 'dialog[open] [data-act="close"]', "the close button");
+    await page.waitForTimeout(300);
+    s = await state();
+    const st = await page.evaluate(() => history.state);
+    !s.open && !(st && st.sheet) ? pass("closing with ✕ leaves no extra back step") : fail(`after ✕: open=${s.open}, history state ${JSON.stringify(st)} (length ${before} → ${s.len})`);
+
+    // Rest timer finishing: the visible and audible cue.
+    await page.evaluate(() => { unlockAudio(); startRest(1); });
+    await page.waitForTimeout(1500);
+    const cue = await page.evaluate(() => ({ toast: document.getElementById("toast").textContent, flash: document.body.classList.contains("rest-done") }));
+    cue.toast.includes("Rest's over") && cue.flash ? pass("rest timer ends with a flash and a message (and a beep)") : fail(`rest timer end: ${JSON.stringify(cue)}`);
+  } catch (e) {
+    fail("back button checks stopped: " + e.message.split("\n")[0]);
+  } finally {
+    await ctx.close();
+  }
+}
+
 async function updateTests(browser) {
   console.log("\nInstalled app: updates and offline");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tension-site-"));
@@ -235,6 +290,7 @@ const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePa
 const { server, url } = await serve(ROOT);
 try {
   await layoutTests(browser, url);
+  await backButtonTests(browser, url);
   if (!process.argv.includes("--layout-only")) await updateTests(browser);
 } finally {
   server.close();
