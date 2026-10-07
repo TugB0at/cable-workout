@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#11161b">
-<meta name="app-version" content="2026.10.07-13">
+<meta name="app-version" content="2026.10.07-14">
 <meta name="description" content="Cable machine workouts by day, with pulley-height diagrams, set logging and progress charts.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -598,6 +598,18 @@ const EX = [
     b: { aL: [86, 82], aR: [86, 82] },
   },
   {
+    id: "lu-raise", name: "Cable Lu raise", group: "push",
+    muscles: "Side delts, traps", level: "low", attach: "2 D-handles",
+    position: "Centered between the towers, cables crossed in front",
+    view: "front", machine: "both", grip: "crossed",
+    setup: ["Set both pulleys at the bottom and pick a light weight.", "Grab the left handle with your right hand and the right handle with your left hand.", "Stand in the middle with the cables crossing in front of your hips."],
+    steps: ["Raise both arms out to the sides, thumbs up, arms straight.", "Keep going past shoulder height until your arms are overhead in a wide V.", "Lower slowly the same way, all the way down."],
+    cues: ["Thumbs up the whole way", "Let the shoulder blades rotate up at the top; that's the traps working", "Light weight, full range"],
+    mistakes: ["Going heavy and swinging the body", "Bending the elbows into a press"],
+    a: { view: "front", x: 160, anchor: "hip", t: 0, aL: [-12, -16], aR: [-12, -16], lL: [6, 3], lR: [6, 3] },
+    b: { aL: [158, 162], aR: [158, 162] },
+  },
+  {
     id: "pushdown", name: "Triceps pushdown", group: "push",
     muscles: "Triceps", level: "high", attach: "Straight bar or tricep rope",
     position: "Facing the tower, close to it",
@@ -811,7 +823,7 @@ const GEAR = {
 };
 const GEAR_FOR = {
   "chest-press": ["dhandle"], "fly-high": ["dhandle"], "fly-low": ["dhandle"], "shoulder-press": ["dhandle"],
-  "cross-lateral": ["dhandle"], "front-raise": ["straight-bar"], pushdown: ["straight-bar", "rope"], "overhead-ext": ["rope"],
+  "cross-lateral": ["dhandle"], "lu-raise": ["dhandle"], "front-raise": ["straight-bar"], pushdown: ["straight-bar", "rope"], "overhead-ext": ["rope"],
   "lat-pulldown": ["lat-bar", "neutral-lat"], row: ["triangle"], "face-pull": ["rope"], "rear-delt-fly": ["dhandle"],
   "straight-arm": ["straight-bar", "rope"], curl: ["curl-bar"], "hammer-curl": ["rope"], "goblet-squat": ["dhandle"],
   rdl: ["straight-bar"], "pull-through": ["rope"], crunch: ["rope"], shrug: ["dhandle"], "front-squat": ["dhandle"], "calf-raise": ["dhandle"],
@@ -825,7 +837,7 @@ const MUSCLES = {
 };
 const MUSCLE_FOR = {
   "chest-press": [["chest"], ["front-delts", "triceps"]], "fly-high": [["chest"], ["front-delts"]], "fly-low": [["chest"], ["front-delts"]],
-  "shoulder-press": [["front-delts", "side-delts"], ["triceps", "traps"]], "cross-lateral": [["side-delts"], ["front-delts", "traps"]],
+  "shoulder-press": [["front-delts", "side-delts"], ["triceps", "traps"]], "cross-lateral": [["side-delts"], ["front-delts", "traps"]], "lu-raise": [["side-delts", "traps"], ["front-delts"]],
   "front-raise": [["front-delts"], ["side-delts", "chest"]], pushdown: [["triceps"], []], "overhead-ext": [["triceps"], []],
   "lat-pulldown": [["lats"], ["biceps", "upper-back", "rear-delts"]], row: [["upper-back", "lats"], ["biceps", "rear-delts"]],
   "face-pull": [["rear-delts", "upper-back"], ["traps", "side-delts"]], "rear-delt-fly": [["rear-delts"], ["upper-back"]],
@@ -840,6 +852,7 @@ const FOCUS = {
   "hammer-curl": "Also hits the brachialis, which sits under the biceps and thickens the arm.",
   "face-pull": "Also strengthens the rotator cuff, which keeps your shoulders healthy.",
   "straight-arm": "Works the lats without the biceps taking over.",
+  "lu-raise": "A lateral raise that keeps going overhead, named after weightlifter Lu Xiaojun. The overhead part brings in the upper traps, which rotate the shoulder blades up.",
   "front-squat": "Holding the handles at your shoulders keeps you upright, which puts more of the work on your quads.",
   "calf-raise": "Stand with the balls of your feet on a plate or step for a bigger stretch at the bottom.",
 };
@@ -913,7 +926,7 @@ const DEFAULT_PLAN = {
   mon: { title: "Push", items: [it("chest-press", 4, 8, 12), it("fly-high", 3, 10, 15), it("shoulder-press", 3, 8, 12), it("cross-lateral", 3, 12, 15), it("pushdown", 4, 10, 12)] },
   tue: { title: "Pull", items: [it("lat-pulldown", 4, 8, 12), it("row", 3, 8, 12), it("face-pull", 3, 12, 15), it("shrug", 4, 10, 15), it("curl", 3, 10, 12)] },
   wed: { title: "Legs & core", items: [it("front-squat", 3, 8, 12), it("rdl", 4, 8, 12), it("pull-through", 3, 12, 15), it("calf-raise", 5, 12, 15), it("crunch", 3, 12, 15)] },
-  thu: { title: "Upper body", items: [it("fly-low", 3, 12, 15), it("lat-pulldown", 3, 10, 12), it("cross-lateral", 3, 12, 15), it("rear-delt-fly", 3, 12, 15), it("overhead-ext", 3, 10, 12), it("hammer-curl", 2, 10, 12)] },
+  thu: { title: "Upper body", items: [it("fly-low", 3, 12, 15), it("lat-pulldown", 3, 10, 12), it("lu-raise", 3, 10, 15), it("rear-delt-fly", 3, 12, 15), it("overhead-ext", 3, 10, 12), it("hammer-curl", 2, 10, 12)] },
   fri: { title: "Lower & core", items: [it("goblet-squat", 4, 10, 12), it("front-squat", 3, 8, 12), it("rdl", 3, 8, 12), it("calf-raise", 5, 12, 15), it("crunch", 3, 12, 15)] },
   sat: { title: "Rest", items: [] },
   sun: { title: "Rest", items: [] },
@@ -1202,7 +1215,7 @@ function mountDiagrams(root) {
 const LS_KEY = "cable-workout-log-v1";   // keep: renaming this would lose saved workouts
 const Store = {
   mode: "loading", db: null, uid: null,
-  state: { units: "lb", plan: clone(DEFAULT_PLAN), notes: {}, rest: 90, beep: true, weighIns: [], planOffer: false, planVersion: 5 },
+  state: { units: "lb", plan: clone(DEFAULT_PLAN), notes: {}, rest: 90, beep: true, weighIns: [], planOffer: false, planVersion: 6 },
   logs: {},
   timers: {}, chains: {},
   async init() {
@@ -1316,11 +1329,17 @@ function normalizeState(s) {
     if (planSig(plan) === planSig(PLAN_V4)) newPlan = clone(DEFAULT_PLAN);
     else if (planSig(plan) !== planSig(DEFAULT_PLAN)) planOffer = true;
   }
+  // v6: the Lu raise was added. It takes Thursday's lateral raise, or joins Thursday if that's a training day.
+  if ((s.planVersion || 1) < 6 && !Object.values(newPlan).some(d => d && Array.isArray(d.items) && d.items.some(x => x.id === "lu-raise"))) {
+    const thu = newPlan.thu, k = thu && Array.isArray(thu.items) ? thu.items.findIndex(x => x.id === "cross-lateral") : -1;
+    if (k >= 0) thu.items[k] = { id: "lu-raise", sets: thu.items[k].sets, min: 10, max: 15 };
+    else if (thu && Array.isArray(thu.items) && thu.items.length) thu.items.push({ id: "lu-raise", sets: 3, min: 10, max: 15 });
+  }
   let weighIns = Array.isArray(s.weighIns)
     ? s.weighIns.filter(x => x && /^\d{4}-\d{2}-\d{2}$/.test(x.d) && +x.w > 0 && +x.w < 1000).map(x => ({ d: x.d, w: +x.w })) : [];
   if (!weighIns.length && +s.bodyWeight > 0 && +s.bodyWeight < 1000) weighIns = [{ d: todayKey(), w: +s.bodyWeight }];
   weighIns.sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));
-  return { units, plan: newPlan, notes: s.notes || {}, rest, beep: s.beep !== false, weighIns, planOffer, planVersion: 5 };
+  return { units, plan: newPlan, notes: s.notes || {}, rest, beep: s.beep !== false, weighIns, planOffer, planVersion: 6 };
 }
 
 /* ============================================================

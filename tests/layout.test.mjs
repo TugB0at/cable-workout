@@ -673,18 +673,44 @@ async function trapsAndWeeklyTests(browser, url) {
       document.getElementById("sheet").close();
       return { main, shaded, tue: Store.state.plan.tue.items.map(x => x.id).includes("shrug"), count: EX.length };
     });
-    r.main === "Traps" && r.shaded >= 3 && r.tue && r.count === 22 ? pass("cable shrug: works the traps (shaded front and back), on Tuesday's plan") : fail(`shrug: ${JSON.stringify(r)}`);
+    r.main === "Traps" && r.shaded >= 3 && r.tue && r.count === 23 ? pass("cable shrug: works the traps (shaded front and back), on Tuesday's plan") : fail(`shrug: ${JSON.stringify(r)}`);
     // Log 3 sets of chest press this week: chest 3 (main), front delts and triceps 1½ each (also worked).
     await tap(page, '[data-day="mon"]', "Monday"); await tap(page, '[data-open="chest-press"]', "chest press");
     for (const reps of ["10", "10", "10"]) { await page.fill("#wIn", "100"); await page.fill("#rIn", reps); await tap(page, '#logForm button[type="submit"]', "Log set"); }
     await page.evaluate(() => document.getElementById("sheet").close()); await page.waitForTimeout(300);
     await tap(page, 'nav.tabs [data-tab="progress"]', "the progress tab");
     const rows = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll(".ms-row")].map(r => [r.querySelector(".ms-name").textContent, r.querySelector(".ms-val").textContent])));
-    rows.Chest === "3/10" && rows["Front delts"] === "1½/11" && rows.Triceps === "1½/10½" && rows.Traps === "0/10" && rows.Glutes === "0/17" && rows.Calves === "0/10"
+    rows.Chest === "3/10" && rows["Front delts"] === "1½/11" && rows.Triceps === "1½/10½" && rows.Traps === "0/11½" && rows.Glutes === "0/17" && rows.Calves === "0/10"
       ? pass("sets per muscle this week: Chest 3/10, Front delts 1½/11, Triceps 1½/10½") : fail(`sets per muscle: ${JSON.stringify(rows)}`);
     await tap(page, '[data-week="-1"]', "Last week");
     const last = await page.evaluate(() => document.querySelector(".ms-row .ms-val").textContent);
     last === "0/10" ? pass("Last week shows last week's sets") : fail(`last week chest: ${last}`);
+    await ctx.close();
+  }
+  // The Lu raise: both arms with crossed cables, side delts and traps, on Thursday; saved plans swap it in.
+  {
+    const ctx = await browser.newContext(mobile), page = await ctx.newPage();
+    await page.goto(url);
+    const r = await page.evaluate(() => {
+      openSheet("lu-raise");
+      const main = [...document.querySelectorAll("dialog[open] .musc .mchip.p")].map(c => c.textContent).join();
+      const top = solve(poseAt(EXMAP["lu-raise"], 1)), handsUp = top.armL[2][1] < top.head[1] && top.armR[2][1] < top.head[1];
+      document.getElementById("sheet").close();
+      return { main, handsUp, thu: Store.state.plan.thu.items.map(x => x.id) };
+    });
+    r.main === "Side delts,Traps" && r.handsUp && r.thu.includes("lu-raise") && !r.thu.includes("cross-lateral")
+      ? pass("Lu raise: side delts and traps, hands finish above the head, on Thursday") : fail(`Lu raise: ${JSON.stringify(r)}`);
+    await ctx.close();
+  }
+  {
+    const ctx = await browser.newContext(mobile), page0 = await ctx.newPage();
+    await page0.goto(url);
+    const old = await page0.evaluate(() => { const p = clone(DEFAULT_PLAN); p.thu.items = p.thu.items.map(x => (x.id === "lu-raise" ? { ...x, id: "cross-lateral", min: 12 } : x)); return { state: { units: "lb", planVersion: 5, plan: p }, logs: {} }; });
+    await page0.close();
+    await ctx.addInitScript(([key, value]) => { localStorage.setItem(key, value); }, [LS_KEY, JSON.stringify(old)]);
+    const page = await ctx.newPage(); await page.goto(url);
+    const st = await page.evaluate(() => ({ thu: Store.state.plan.thu.items.map(x => x.id).join(), mon: Store.state.plan.mon.items.map(x => x.id).includes("cross-lateral") }));
+    st.thu.includes("lu-raise") && !st.thu.includes("cross-lateral") && st.mon ? pass("saved plans: Thursday's lateral raise becomes the Lu raise (Monday's stays)") : fail(`Lu raise swap: ${JSON.stringify(st)}`);
     await ctx.close();
   }
   // A plan saved before the shrug existed gets it on Tuesday.
