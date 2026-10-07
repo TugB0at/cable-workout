@@ -44,7 +44,10 @@ function serve(dir) {
 }
 
 // Three weeks of example workouts plus a long machine note, so every screen has content.
-function seed() {
+// Local-date key n days from today (same format the app uses).
+const dayKey = n => { const d = new Date(); d.setDate(d.getDate() + n); const z = v => String(v).padStart(2, "0"); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; };
+
+function seed({ weight = false } = {}) {
   const logs = {}, day = new Date();
   for (let i = 1; i <= 21; i += 2) {
     const d = new Date(day); d.setDate(d.getDate() - i);
@@ -55,7 +58,8 @@ function seed() {
       "rdl": [{ w: 100, r: 8 }],
     } };
   }
-  return { state: { units: "lb", notes: { "chest-press": "position 31 of 32 on both towers, check!" }, rest: 90, planVersion: 3 }, logs };
+  const weighIns = weight ? [{ d: dayKey(-30), w: 207 }, { d: dayKey(-15), w: 205.5 }, { d: dayKey(-2), w: 203 }] : [];
+  return { state: { units: "lb", notes: { "chest-press": "position 31 of 32 on both towers, check!" }, rest: 90, weighIns, planVersion: 3 }, logs };
 }
 
 // Everything on screen that sticks out past the right edge of the phone (or of the
@@ -138,7 +142,7 @@ async function layoutTests(browser, url) {
   for (const width of WIDTHS) {
     console.log(`\nPhone ${width} px wide`);
     const ctx = await browser.newContext({ viewport: { width, height: 780 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, colorScheme: "dark", reducedMotion: "reduce" });
-    const data = seed();
+    const data = seed({ weight: true });
     await ctx.addInitScript(([key, value]) => { if (!localStorage.getItem(key)) localStorage.setItem(key, value); }, [LS_KEY, JSON.stringify(data)]);
     await ctx.addInitScript(RGB_HELPER);
     const page = await ctx.newPage();
@@ -374,7 +378,7 @@ async function pastDayTests(browser, url) {
     await page.fill("#bwIn", "180"); await tap(page, '[data-act="savebw"]', "Save body weight");
     const est2 = await page.evaluate(() => document.querySelector("dialog[open] .cal-card")?.textContent.replace(/\s+/g, " ") || "");
     pre === "200" && est2.includes("≈ 33 calories") && est2.includes("180 lb") ? pass("Change body weight on the summary: 200 → 180 lb, ≈ 33 calories") : fail(`change body weight: prefilled "${pre}", "${est2}"`);
-    await page.evaluate(() => { Store.state.bodyWeight = 200; Store.saveState(); });
+    await page.evaluate(() => logWeighIn(todayKey(), 200));
     await back();
     (await page.evaluate(() => !document.querySelector("dialog[open]"))) ? pass("back closes the summary") : fail("summary still open after back");
     // Measured time: two sets 40 minutes apart today, 200 lb body weight -> 3.5 x 90.7 kg x 41/60 h = 217.
@@ -402,6 +406,44 @@ async function pastDayTests(browser, url) {
     edit.tab === "today" && edit.key && edit.note ? pass("Edit reopens that day on Today") : fail(`Edit: ${JSON.stringify(edit)}`);
   } catch (e) {
     fail("missed-day checks stopped: " + e.message.split("\n")[0]);
+  } finally {
+    await ctx.close();
+  }
+}
+
+// Weigh-ins: the old single body weight carries over, weigh-ins chart over time, and each
+// workout's calories use the weigh-in from that day or the closest one before it.
+async function bodyWeightTests(browser, url) {
+  console.log("\nBody weight");
+  const ctx = await browser.newContext({ viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, reducedMotion: "reduce" });
+  const old = { state: { units: "lb", bodyWeight: 200, planVersion: 3 }, logs: {} };          // saved by the previous version
+  await ctx.addInitScript(([key, value]) => { if (!localStorage.getItem(key)) localStorage.setItem(key, value); }, [LS_KEY, JSON.stringify(old)]);
+  const page = await ctx.newPage();
+  try {
+    await page.goto(url);
+    await tap(page, 'nav.tabs [data-tab="progress"]', "the progress tab");
+    const start = await page.evaluate(() => ({ list: Store.state.weighIns.map(x => `${x.d}:${x.w}`).join(" "), now: document.querySelector(".bw-now")?.textContent.replace(/\s+/g, " ").trim() }));
+    start.list === `${dayKey(0)}:200` && start.now?.startsWith("200 lb") ? pass(`earlier body weight carried over: "${start.now}"`) : fail(`carry-over: ${JSON.stringify(start)}`);
+
+    await page.fill("#bwNew", "210"); await page.fill("#bwDate", dayKey(-20));
+    await tap(page, '#bwForm button[type="submit"]', "Log weigh-in");
+    await page.fill("#bwNew", "198"); await page.fill("#bwDate", dayKey(0));
+    await tap(page, '#bwForm button[type="submit"]', "Log weigh-in");
+    const r = await page.evaluate(() => ({
+      list: Store.state.weighIns.map(x => `${x.d}:${x.w}`).join(" "),
+      chart: !!document.querySelector("#bwChart svg path.l1"),
+      trend: document.querySelector('[aria-label="Body weight"] .row .muted')?.textContent || "",
+      now: document.querySelector(".bw-now")?.textContent.replace(/\s+/g, " ").trim(),
+    }));
+    r.list === `${dayKey(-20)}:210 ${dayKey(0)}:198` && r.chart && r.trend.startsWith("−12 lb since") && r.now.startsWith("198 lb")
+      ? pass(`weigh-ins: same day replaced, chart drawn, "${r.trend}"`) : fail(`weigh-ins: ${JSON.stringify(r)}`);
+    const on = await page.evaluate(([a, b, c]) => [bodyWeightOn(a).w, bodyWeightOn(b).w, bodyWeightOn(c).w], [dayKey(-25), dayKey(-10), dayKey(0)]);
+    on.join() === "210,210,198" ? pass("calories use that day's weigh-in or the one before it (210, 210, 198)") : fail(`weight used per day: ${on.join()}`);
+    await tap(page, `[data-delw="${dayKey(-20)}"]`, "delete weigh-in");
+    const del = await page.evaluate(() => ({ n: Store.state.weighIns.length, chart: !!document.querySelector("#bwChart") }));
+    del.n === 1 && !del.chart ? pass("deleting a weigh-in removes it (chart hides with one left)") : fail(`delete weigh-in: ${JSON.stringify(del)}`);
+  } catch (e) {
+    fail("body weight checks stopped: " + e.message.split("\n")[0]);
   } finally {
     await ctx.close();
   }
@@ -459,6 +501,7 @@ try {
   await layoutTests(browser, url);
   await backButtonTests(browser, url);
   await pastDayTests(browser, url);
+  await bodyWeightTests(browser, url);
   if (!process.argv.includes("--layout-only")) await updateTests(browser);
 } finally {
   server.close();

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#11161b">
-<meta name="app-version" content="2026.10.07-8">
+<meta name="app-version" content="2026.10.07-9">
 <meta name="description" content="Cable machine workouts by day, with pulley-height diagrams, set logging and progress charts.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -177,6 +177,15 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin
 .cal-card .cal-v span { font-weight: 600; }
 .cal-card .s { font-size: 13px; color: var(--muted); }
 .bw-row { display: flex; align-items: center; gap: 8px; }
+.bw-now { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.bw-now b { font-family: var(--font-display); font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums; }
+.bw-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) auto; gap: 8px; align-items: end; }
+.bw-form label { display: grid; gap: 2px; min-width: 0; font-size: 12px; font-weight: 600; color: var(--muted); }
+.bw-form input { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 6px 10px; font-size: 16px; }
+.bw-form input[type="number"] { font-family: var(--font-mono); }
+.bw-form .btn { min-height: 44px; }
+.bw-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 6px; }
+.bw-list .set-chip { justify-content: space-between; }
 .bw-row input { width: 96px; min-height: 40px; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 6px 10px; font-family: var(--font-mono); font-size: 16px; }
 .record { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px;
   background: color-mix(in srgb, var(--accent) 14%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); }
@@ -389,6 +398,8 @@ button, a, input, select, label { touch-action: manipulation; }
   .gear-pick { flex-direction: column; }
   .gear-pick .gear-card { flex: none; }
   .stats, .sum-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bw-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bw-form .btn { grid-column: 1 / -1; }
   h2 { font-size: 26px; }
 }
 /* Hover outlines only with a mouse; on phones a tapped row would otherwise stay outlined. */
@@ -1064,7 +1075,7 @@ function mountDiagrams(root) {
 const LS_KEY = "cable-workout-log-v1";   // keep: renaming this would lose saved workouts
 const Store = {
   mode: "loading", db: null, uid: null,
-  state: { units: "lb", plan: clone(DEFAULT_PLAN), notes: {}, rest: 90, beep: true, planVersion: 3 },
+  state: { units: "lb", plan: clone(DEFAULT_PLAN), notes: {}, rest: 90, beep: true, weighIns: [], planVersion: 3 },
   logs: {},
   timers: {}, chains: {},
   async init() {
@@ -1134,8 +1145,11 @@ function normalizeState(s) {
   // v3: pounds by default (the Arcadia stack is marked in lb). Only keep kg if picked after that.
   const units = s.units === "kg" && (s.planVersion || 1) >= 3 ? "kg" : "lb";
   const rest = [60, 90, 120, 180].includes(s.rest) ? s.rest : 90;
-  const bodyWeight = +s.bodyWeight > 0 && +s.bodyWeight < 1000 ? +s.bodyWeight : null;
-  return { units, plan, notes: s.notes || {}, rest, beep: s.beep !== false, bodyWeight, planVersion: 3 };
+  let weighIns = Array.isArray(s.weighIns)
+    ? s.weighIns.filter(x => x && /^\d{4}-\d{2}-\d{2}$/.test(x.d) && +x.w > 0 && +x.w < 1000).map(x => ({ d: x.d, w: +x.w })) : [];
+  if (!weighIns.length && +s.bodyWeight > 0 && +s.bodyWeight < 1000) weighIns = [{ d: todayKey(), w: +s.bodyWeight }];
+  weighIns.sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));
+  return { units, plan, notes: s.notes || {}, rest, beep: s.beep !== false, weighIns, planVersion: 3 };
 }
 
 /* ============================================================
@@ -1224,7 +1238,7 @@ function render() {
   const v = document.getElementById("view");
   v.innerHTML = { today: viewToday, plan: viewPlan, library: viewLibrary, progress: viewProgress }[ui.tab]();
   mountDiagrams(v);
-  if (ui.tab === "progress") drawChart();
+  if (ui.tab === "progress") { drawChart(); drawWeightChart(); }
 }
 
 function viewToday() {
@@ -1397,6 +1411,7 @@ function viewProgress() {
       ${logged.length ? `<div id="chartBox"></div><div class="legend"><span><i></i>Heaviest set</span><span><i class="d"></i>Estimated 1-rep max</span></div>`
         : `<div class="empty">Your chart appears here after your first logged set. Open any exercise from Today and tap <b>Log set</b>.</div>`}
     </section>
+    ${bodyWeightCard()}
     ${hist ? `<section class="card stack"><h3>Recent workouts</h3><div class="hist">${hist}</div></section>` : ""}
     <section class="card stack">
       <h3>Settings & backup</h3>
@@ -1404,8 +1419,6 @@ function viewProgress() {
         <span class="muted" style="font-size:13px">Changes the label only. Numbers aren't converted.</span></div>
       <div class="row"><span>Rest timer</span><span class="seg">${[60, 90, 120, 180].map(v => `<button data-restdef="${v}" aria-pressed="${Store.state.rest === v}">${v < 120 ? v + " s" : v / 60 + " min"}</button>`).join("")}</span>
         <span class="muted" style="font-size:13px">Starts after each logged set.</span></div>
-      <div class="row"><label for="bwSet">Body weight</label><span class="bw-row"><input id="bwSet" type="number" inputmode="decimal" min="50" max="999" step="any" value="${Store.state.bodyWeight ?? ""}" placeholder="${unit()}"><span class="muted">${unit()}</span></span>
-        <span class="muted" style="font-size:13px">Only used to estimate calories burned.</span></div>
       <div class="row"><span>Beep when rest is over</span><span class="seg"><button data-beep="on" aria-pressed="${Store.state.beep !== false}">On</button><button data-beep="off" aria-pressed="${Store.state.beep === false}">Off</button></span>
         <span class="muted" style="font-size:13px">The screen also flashes, and phones that support it vibrate.</span></div>
       <div class="row"><button class="btn small" data-act="export">Export backup (.json)</button>
@@ -1416,6 +1429,40 @@ function viewProgress() {
     </section>`;
 }
 
+function bodyWeightCard() {
+  const w = Store.state.weighIns, last = w[w.length - 1], trend = weightTrend();
+  return `<section class="card stack" aria-label="Body weight">
+    <div class="row" style="justify-content:space-between"><h3>Body weight</h3>${trend ? `<span class="muted num" style="font-size:13px">${trend}</span>` : ""}</div>
+    ${last ? `<div class="bw-now"><b>${fmtW(last.w)}</b> <span>${unit()}</span> <span class="muted">on ${fmtDate(last.d, { weekday: "short", month: "short", day: "numeric" })}</span></div>`
+      : `<p class="muted" style="margin:0">Log your weight to see the trend here. It's also used to estimate calories burned.</p>`}
+    ${w.length > 1 ? `<div id="bwChart"></div>` : ""}
+    <form class="bw-form" id="bwForm">
+      <label>Weight (${unit()})<input id="bwNew" type="number" inputmode="decimal" step="any" min="50" max="999" value="${last ? fmtW(last.w) : ""}" required></label>
+      <label>Date<input id="bwDate" type="date" value="${todayKey()}" max="${todayKey()}" required></label>
+      <button class="btn primary" type="submit">Log weigh-in</button>
+    </form>
+    ${w.length ? `<div class="bw-list" aria-label="Recent weigh-ins">${w.slice(-4).reverse().map(x => `<span class="set-chip">${fmtDate(x.d, { month: "short", day: "numeric" })}: ${fmtW(x.w)} ${unit()}<button type="button" data-delw="${x.d}" aria-label="Delete weigh-in ${fmtDate(x.d)}">✕</button></span>`).join("")}</div>` : ""}
+  </section>`;
+}
+function drawWeightChart() {
+  const box = document.getElementById("bwChart"), pts = Store.state.weighIns;
+  if (!box || pts.length < 2) return;
+  const W = Math.max(260, Math.round(box.clientWidth || 640)), H = Math.round(Math.min(200, Math.max(150, W * 0.42))), ml = 40, mr = 14, mt = 12, mb = 26;
+  const t = k => parseKey(k).getTime(), t0 = t(pts[0].d), t1 = t(pts[pts.length - 1].d);
+  const lo0 = Math.min(...pts.map(p => p.w)), hi0 = Math.max(...pts.map(p => p.w)), span = Math.max(hi0 - lo0, 2);
+  const step = [0.5, 1, 2, 5, 10, 20, 50].find(v => span / v <= 4) || 50;
+  const lo = Math.floor((lo0 - span * 0.15) / step) * step, hi = Math.ceil((hi0 + span * 0.15) / step) * step;
+  const x = k => (t1 === t0 ? (ml + W - mr) / 2 : ml + (W - ml - mr) * (t(k) - t0) / (t1 - t0));
+  const y = v => mt + (H - mt - mb) * (1 - (v - lo) / (hi - lo));
+  let s = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Body weight over time">`;
+  for (let v = lo; v <= hi + 1e-9; v += step) s += `<line class="gridl" x1="${ml}" x2="${W - mr}" y1="${y(v)}" y2="${y(v)}"/><text class="axis" x="${ml - 8}" y="${y(v) + 4}" text-anchor="end">${fmtW(v)}</text>`;
+  const first = pts[0], last = pts[pts.length - 1];
+  s += `<text class="axis" x="${ml}" y="${H - 8}" text-anchor="start">${fmtDate(first.d, { month: "short", day: "numeric" })}</text><text class="axis" x="${W - mr}" y="${H - 8}" text-anchor="end">${fmtDate(last.d, { month: "short", day: "numeric" })}</text>`;
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${x(p.d).toFixed(1)},${y(p.w).toFixed(1)}`).join("");
+  s += `<path class="area" d="${line}L${x(last.d)},${H - mb}L${x(first.d)},${H - mb}Z"/><path class="l1" d="${line}"/>`;
+  pts.forEach((p, i) => { s += i === pts.length - 1 ? `<circle class="end" cx="${x(p.d)}" cy="${y(p.w)}" r="5"/>` : `<circle class="dot" cx="${x(p.d)}" cy="${y(p.w)}" r="3"/>`; });
+  box.innerHTML = s + "</svg>";
+}
 function drawChart() {
   const box = document.getElementById("chartBox"); if (!box || !ui.chartEx) return;
   const pts = Object.keys(Store.logs).sort().map(d => ({ d, s: setsOn(d, ui.chartEx) })).filter(x => x.s.length)
@@ -1457,6 +1504,24 @@ function openSheet(id) {
    measured span of the workout plus a minute for the last set; back-filled days have no
    timestamps, so their time is estimated from the sets and the rest timer setting. */
 const MET_RESISTANCE = 3.5;
+// Body weight: one weigh-in per day. A workout uses the weigh-in from that day or the closest one before it.
+function logWeighIn(d, w) {
+  const list = Store.state.weighIns.filter(x => x.d !== d);
+  list.push({ d, w }); list.sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));
+  Store.state.weighIns = list; Store.saveState();
+}
+function bodyWeightOn(date) {
+  const w = Store.state.weighIns; if (!w.length) return null;
+  const before = w.filter(x => x.d <= date);
+  return before.length ? before[before.length - 1] : w[0];
+}
+function weightTrend() {
+  const w = Store.state.weighIns; if (w.length < 2) return "";
+  const last = w[w.length - 1], cutoff = shiftKey(last.d, -30);
+  const base = [...w].reverse().find(x => x.d <= cutoff) || w[0];
+  const diff = Math.round((last.w - base.w) * 10) / 10;
+  return `${diff > 0 ? "+" : diff < 0 ? "−" : "±"}${fmtW(Math.abs(diff))} ${unit()} since ${fmtDate(base.d, { month: "short", day: "numeric" })}`;
+}
 function workoutTime(date) {
   const all = Object.values(Store.logs[date]?.sets || {}).flat();
   const ts = all.map(x => x.t).filter(t => t && dateKey(new Date(t)) === date);
@@ -1464,10 +1529,11 @@ function workoutTime(date) {
   return all.length ? { mins: Math.max(1, Math.round((all.length * ((Store.state.rest || 90) + 40)) / 60)), measured: false } : null;
 }
 function caloriesFor(date) {
-  const bw = Store.state.bodyWeight, time = workoutTime(date);
-  if (!bw || !time) return null;
+  const weigh = bodyWeightOn(date), time = workoutTime(date);
+  if (!weigh || !time) return null;
+  const bw = weigh.w;
   const kg = unit() === "kg" ? bw : bw * 0.45359237;
-  return { kcal: Math.round(MET_RESISTANCE * kg * (time.mins / 60)), ...time, bw };
+  return { kcal: Math.round(MET_RESISTANCE * kg * (time.mins / 60)), ...time, bw, bwDate: weigh.d };
 }
 function openSummary() {
   ui.sheetMode = "summary"; ui.editBw = false;
@@ -1502,9 +1568,9 @@ function renderSummary() {
       <div class="stat"><div class="v">${planned.length ? `${doneN}/${planned.length}` : ids.length}</div><div class="k">exercises ${planned.length ? "finished" : "done"}</div></div>
     </div>
     ${cal && !ui.editBw ? `<div class="cal-card"><div class="cal-v"><b>≈ ${cal.kcal.toLocaleString()}</b> <span>calories burned</span> <button type="button" class="link-btn" data-act="editbw">Change body weight</button></div>
-      <div class="s">Estimate: ${MET_RESISTANCE} METs for resistance training × ${fmtW(cal.bw)} ${unit()} body weight × ${cal.mins} min${cal.measured ? "" : " (estimated from your sets and rest time)"}. It goes by time and body weight, not by how much you lift.</div></div>`
-    : `<div class="cal-card"><label for="bwIn" class="s" style="color:var(--ink);font-weight:600">${Store.state.bodyWeight ? "Your body weight" : "Add your body weight to see calories burned"}</label>
-      <div class="bw-row"><input id="bwIn" type="number" inputmode="decimal" min="50" max="999" step="any" value="${Store.state.bodyWeight ?? ""}" placeholder="${unit()}" aria-label="Body weight in ${unit()}"><span class="muted">${unit()}</span><button type="button" class="btn small" data-act="savebw">Save</button>${ui.editBw ? `<button type="button" class="btn small" data-act="cancelbw">Cancel</button>` : ""}</div></div>`}
+      <div class="s">Estimate: ${MET_RESISTANCE} METs for resistance training × ${fmtW(cal.bw)} ${unit()} body weight${cal.bwDate !== date ? ` (weighed ${fmtDate(cal.bwDate, { month: "short", day: "numeric" })})` : ""} × ${cal.mins} min${cal.measured ? "" : " (estimated from your sets and rest time)"}. It goes by time and body weight, not by how much you lift.</div></div>`
+    : `<div class="cal-card"><label for="bwIn" class="s" style="color:var(--ink);font-weight:600">${bodyWeightOn(date) ? `Your body weight on ${fmtDate(date, { month: "short", day: "numeric" })}` : "Add your body weight to see calories burned"}</label>
+      <div class="bw-row"><input id="bwIn" type="number" inputmode="decimal" min="50" max="999" step="any" value="${bodyWeightOn(date) ? fmtW(bodyWeightOn(date).w) : ""}" placeholder="${unit()}" aria-label="Body weight in ${unit()}"><span class="muted">${unit()}</span><button type="button" class="btn small" data-act="savebw">Save</button>${ui.editBw ? `<button type="button" class="btn small" data-act="cancelbw">Cancel</button>` : ""}</div></div>`}
     <section class="stack" style="gap:8px">
       <h3>New records</h3>
       ${records.length ? `<div class="records">${records.map(r => `<div class="record"><span class="pr">PR</span><div><div class="nm">${esc(EXMAP[r.id].name)}</div><div class="s">${r.kind}: <b>${fmtW(r.now)} ${unit()}</b>, up from ${fmtW(r.was)}</div></div></div>`).join("")}</div>`
@@ -1707,6 +1773,7 @@ view.addEventListener("click", e => {
     return openSheet(ds.open);
   }
   if (ds.restdef) { Store.state.rest = +ds.restdef; Store.saveState(); return render(); }
+  if (ds.delw) { Store.state.weighIns = Store.state.weighIns.filter(x => x.d !== ds.delw); Store.saveState(); toast("Weigh-in deleted"); return render(); }
   if (ds.beep) { Store.state.beep = ds.beep === "on"; Store.saveState(); if (Store.state.beep) { unlockAudio(); beep(); } return render(); }
   if (ds.day) { ui.day = ds.day; return render(); }
   if (ds.shift) { setLogDate(shiftKey(logKey(), +ds.shift)); return render(); }
@@ -1737,6 +1804,16 @@ view.addEventListener("click", e => {
     case "finish": return openSummary();
   }
 });
+view.addEventListener("submit", e => {
+  if (e.target.id !== "bwForm") return;
+  e.preventDefault();
+  const w = parseFloat(document.getElementById("bwNew").value), d = document.getElementById("bwDate").value || todayKey();
+  if (!(w > 0 && w < 1000)) { toast(`Enter your weight in ${unit()}.`); return; }
+  if (d > todayKey()) { toast("Pick today or an earlier day."); return; }
+  logWeighIn(d, w);
+  toast(`Weigh-in logged: ${fmtW(w)} ${unit()} on ${fmtDate(d, { month: "short", day: "numeric" })}`);
+  render();
+});
 view.addEventListener("change", e => {
   const t = e.target;
   if (t.dataset.pi) {
@@ -1748,7 +1825,6 @@ view.addEventListener("change", e => {
   if (t.dataset.title) { Store.state.plan[t.dataset.title].title = t.value.trim().slice(0, 40); Store.saveState(); return; }
   if (t.id === "chartEx") { ui.chartEx = t.value; return drawChart(); }
   if (t.id === "logDate") { setLogDate(t.value || null); return render(); }
-  if (t.id === "bwSet") { const v = parseFloat(t.value); Store.state.bodyWeight = v > 0 && v < 1000 ? v : null; Store.saveState(); return; }
   if (t.id === "importFile" && t.files[0]) {
     const r = new FileReader();
     r.onload = () => {
@@ -1794,7 +1870,7 @@ sheet.addEventListener("click", e => {
   if (t.dataset.act === "savebw") {
     const v = parseFloat(document.getElementById("bwIn").value);
     if (!(v > 0 && v < 1000)) { toast(`Enter your body weight in ${unit()}.`); return; }
-    Store.state.bodyWeight = v; ui.editBw = false; Store.saveState(); renderSheet(); return;
+    logWeighIn(logKey(), v); ui.editBw = false; renderSheet(); return;
   }
   if (t.dataset.act === "editbw") { ui.editBw = true; renderSheet(); document.getElementById("bwIn").focus(); return; }
   if (t.dataset.act === "cancelbw") { ui.editBw = false; renderSheet(); return; }
@@ -1889,7 +1965,7 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 document.addEventListener("submit", e => {
-  if (e.target.id !== "logForm" || !(navigator.storage && navigator.storage.persist)) return;
+  if (!["logForm", "bwForm"].includes(e.target.id) || !(navigator.storage && navigator.storage.persist)) return;
   navigator.storage.persisted().then(p => p || navigator.storage.persist()).catch(() => {});
 }, { capture: true });
 
