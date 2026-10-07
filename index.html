@@ -1,3 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#11161b">
+<meta name="description" content="Cable machine workouts by day, with pulley-height diagrams, set logging and progress charts.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }</style>
+</head>
+<body>
+<!-- app:start (everything between the app markers is also published as the claude.ai artifact) -->
 <title>Cable Workout Log</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -41,6 +55,7 @@ body { color: var(--ink); font-family: var(--font-body); font-size: 15px; line-h
 button, input, select { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--cable); outline-offset: 2px; }
 
+[hidden] { display: none !important; }
 .shell { max-width: 880px; margin: 0 auto; padding-inline: 16px; padding-block: 0 48px; }
 header.top {
   position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
@@ -932,7 +947,7 @@ function toast(msg) {
 }
 function setStatus(s) { document.getElementById("saveStatus").textContent = s; }
 function updateStatus() {
-  setStatus({ loading: "Loading your log…", cloud: "Synced to your account", local: "Saved in this browser", memory: "Not saving: storage is blocked" }[Store.mode]);
+  setStatus({ loading: "Loading your log…", cloud: "Synced to your account", local: "Saved on this device", memory: "Not saving: storage is blocked" }[Store.mode]);
 }
 
 /* ============================================================
@@ -1098,7 +1113,7 @@ function viewProgress() {
       <div class="row"><button class="btn small" data-act="export">Export backup (.json)</button>
         <label class="btn small" for="importFile">Import backup</label><input type="file" id="importFile" accept=".json,application/json" hidden></div>
       ${ui.confirm && ui.confirm.import ? `<div class="confirm">Replace everything here with the backup (${ui.confirm.import.days} workout days)? <button class="btn small danger" data-act="import-yes">Replace</button><button class="btn small" data-act="cancel">Cancel</button></div>` : ""}
-      <div class="muted" style="font-size:13px">${{ cloud: "Your log is saved to your Claude account, private to you.", local: "Your log is saved in this browser only. Export a backup now and then.", memory: "This browser is blocking storage, so nothing is saved. Export before closing.", loading: "Loading…" }[Store.mode]}</div>
+      <div class="muted" style="font-size:13px">${{ cloud: "Your log is saved to your Claude account, private to you.", local: "Your log is saved on this device only. Export a backup now and then, and before switching phones.", memory: "This browser is blocking storage, so nothing is saved. Export before closing.", loading: "Loading…" }[Store.mode]}</div>
     </section>`;
 }
 
@@ -1330,3 +1345,13 @@ sheet.addEventListener("submit", e => {
 render();
 Store.init().then(() => { updateStatus(); render(); });
 </script>
+<!-- app:end -->
+<script>
+// Installable app: offline cache, and ask the browser not to clear saved workouts.
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+</script>
+</body>
+</html>

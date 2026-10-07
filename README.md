@@ -10,8 +10,20 @@ A private, single-page web app for training on a REP Arcadia functional trainer 
 - **Progress**: workouts per week, a 16-week activity grid, a strength chart per exercise (heaviest set and estimated 1-rep max), and recent history.
 - **Progression hints**: once you hit the top of your rep range on every set, the app tells you to add weight.
 
+## Install it on Android
+
+1. Open the app's GitHub Pages address in Chrome on your phone.
+2. Tap **Install** when Chrome offers it, or **⋮ → Add to Home screen → Install**.
+
+It opens full screen from its own icon and works offline. Workouts are saved on the phone.
+Use **Progress → Export backup** now and then, and before switching phones.
+
 ## Running it
 
-It's one file with no build step. Open `index.html` in a browser. Your data is saved in that browser's local storage. Use **Progress → Export backup** now and then.
+It's a static site with no build step: `index.html`, `manifest.webmanifest`, `sw.js` and the icons.
+Any static host works. Opening `index.html` straight from disk also works (without offline support).
 
-When it's published as a claude.ai artifact, the log is saved to your Claude account instead (private to you), so it follows you across devices.
+## Privacy
+
+The repository holds only code. Workout logs never leave the device (or your Claude account,
+when used as a claude.ai artifact).
