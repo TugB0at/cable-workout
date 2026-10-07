@@ -1,0 +1,1210 @@
+<title>Cable Workout Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: one column app shell. Sticky header with tabs, cards for exercises, a sheet for exercise detail. */
+:root {
+  --bg: #e9ecef;
+  --surface: #f8f9fa;
+  --surface-2: #dde2e7;
+  --ink: #141d26;
+  --muted: #56616d;
+  --line: #c9d0d7;
+  --accent: #f2b705;        /* weight-stack pin yellow, used as a fill */
+  --accent-ink: #141d26;
+  --cable: #c43d0c;         /* cable + motion path in diagrams */
+  --fig: #1d2833;
+  --fig-far: #8f9ba7;
+  --good: #1f7a4d;
+  --warn: #9a5b00;
+  --font-display: "Saira Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161b; --surface: #192027; --surface-2: #232c35; --ink: #e5e9ed; --muted: #95a1ad;
+    --line: #2f3a45; --accent: #f5c02b; --accent-ink: #141d26; --cable: #ff7a45; --fig: #e5e9ed;
+    --fig-far: #5f6c79; --good: #4cc38a; --warn: #f0b44c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161b; --surface: #192027; --surface-2: #232c35; --ink: #e5e9ed; --muted: #95a1ad;
+  --line: #2f3a45; --accent: #f5c02b; --accent-ink: #141d26; --cable: #ff7a45; --fig: #e5e9ed;
+  --fig-far: #5f6c79; --good: #4cc38a; --warn: #f0b44c; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); }
+body { color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; margin: 0; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--cable); outline-offset: 2px; }
+
+.shell { max-width: 880px; margin: 0 auto; padding-inline: 16px; padding-block: 0 48px; }
+header.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--bg); border-bottom: 1px solid var(--line);
+  margin-inline: -16px; padding-inline: 16px; padding-block: 12px 0;
+}
+.brand { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand h1 { font-family: var(--font-display); font-weight: 700; font-size: 26px; letter-spacing: .02em; text-transform: uppercase; margin: 0; line-height: 1; }
+.brand h1 span { background: var(--accent); color: var(--accent-ink); padding: 0 6px; border-radius: 3px; }
+.save-status { font-size: 12px; color: var(--muted); }
+nav.tabs { display: flex; gap: 4px; margin-top: 10px; overflow-x: auto; }
+nav.tabs button {
+  border: 0; background: none; padding: 8px 12px 10px; cursor: pointer; color: var(--muted);
+  font-family: var(--font-display); font-weight: 600; font-size: 17px; letter-spacing: .06em; text-transform: uppercase;
+  border-bottom: 3px solid transparent; white-space: nowrap;
+}
+nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+
+main { display: grid; gap: 20px; padding-top: 20px; }
+h2 { font-family: var(--font-display); font-weight: 700; font-size: 30px; line-height: 1.05; margin: 0; text-wrap: balance; text-transform: uppercase; letter-spacing: .01em; }
+h3 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 0; letter-spacing: .02em; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.muted { color: var(--muted); }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.stack { display: grid; gap: 12px; }
+
+.daychips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip-btn {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 12px; cursor: pointer;
+  font-size: 13px; font-weight: 600;
+}
+.chip-btn[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip-btn.today::after { content: "•"; color: var(--cable); margin-left: 4px; }
+
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--surface-2); color: var(--ink); white-space: nowrap; }
+.pill.pulley { background: var(--accent); color: var(--accent-ink); }
+.pill.done { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
+
+.ex-list { display: grid; gap: 10px; }
+.ex-row {
+  display: grid; grid-template-columns: 120px 1fr; gap: 14px; align-items: center; text-align: left;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px; cursor: pointer; width: 100%;
+}
+.ex-row:hover { border-color: var(--muted); }
+.ex-row .info { min-width: 0; display: grid; gap: 4px; }
+.ex-row .name { font-weight: 600; font-size: 16px; }
+.ex-row .meta { font-size: 13px; color: var(--muted); }
+.ex-row .order { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+
+.fig { display: block; width: 100%; height: auto; background: var(--surface-2); border-radius: 8px; }
+.fig .floor { stroke: var(--muted); stroke-width: 2; }
+.fig .tower { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+.fig .tick { stroke: var(--line); stroke-width: 1.5; }
+.fig .carriage { fill: var(--accent); stroke: var(--accent-ink); stroke-width: 1; }
+.fig .pulley { fill: var(--surface); stroke: var(--fig); stroke-width: 2; }
+.fig .guide { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 3 5; opacity: .9; }
+.fig .cable { stroke: var(--cable); stroke-width: 2; }
+.fig .handle { fill: var(--surface); stroke: var(--cable); stroke-width: 2.5; }
+.fig .trail { fill: none; stroke: var(--cable); stroke-width: 1.5; stroke-dasharray: 2 4; opacity: .75; }
+.fig .arrow { fill: var(--cable); }
+.fig .limb { fill: none; stroke: var(--fig); stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
+.fig .limb.far { stroke: var(--fig-far); }
+.fig .torso { fill: none; stroke: var(--fig); stroke-width: 14; stroke-linecap: round; }
+.fig .torso-f { fill: var(--fig); stroke: var(--fig); stroke-width: 6; stroke-linejoin: round; }
+.fig .head { fill: var(--fig); }
+.fig .lbl { fill: var(--muted); font: 600 10px var(--font-body); letter-spacing: .06em; text-transform: uppercase; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+.grid-lib { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.lib-card { display: grid; gap: 8px; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px; cursor: pointer; }
+.lib-card:hover { border-color: var(--muted); }
+.lib-card .name { font-weight: 600; }
+.lib-card .meta { font-size: 13px; color: var(--muted); }
+
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 600; font-size: 14px; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.danger { color: var(--cable); }
+.btn.small { padding: 4px 10px; font-size: 13px; }
+.icon-btn { border: 0; background: none; cursor: pointer; padding: 4px 8px; color: var(--muted); font-size: 16px; line-height: 1; border-radius: 6px; }
+.icon-btn:hover { background: var(--surface-2); color: var(--ink); }
+
+.empty { border: 1px dashed var(--line); border-radius: var(--r); padding: 24px; text-align: center; color: var(--muted); }
+.rest { padding: 32px 20px; }
+.rest h3 { color: var(--ink); margin-bottom: 6px; }
+
+/* Detail sheet */
+dialog.sheet { border: 0; padding: 0; width: min(760px, 100%); max-height: 100%; background: var(--bg); color: var(--ink); border-radius: 14px; }
+dialog.sheet::backdrop { background: rgb(0 0 0 / .5); }
+.sheet-inner { padding: 18px 16px 24px; display: grid; gap: 18px; }
+.sheet-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+.fig-wrap { display: grid; gap: 8px; }
+#sheetFig .fig { max-height: 46vh; }
+.fig-ctrl { display: flex; gap: 10px; align-items: center; }
+.fig-ctrl input[type="range"] { flex: 1; accent-color: var(--cable); }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.fact { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.fact .k { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.fact .v { font-weight: 600; }
+.fact .s { font-size: 13px; color: var(--muted); }
+.fact.pulley-fact { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.fact.pulley-fact .k, .fact.pulley-fact .s { color: var(--accent-ink); opacity: .8; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.cols > div { min-width: 0; }
+ol.steps, ul.cues { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 4px; }
+.note-input { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 10px; }
+
+.logger { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: grid; gap: 12px; }
+.log-form { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
+.log-form label { display: grid; gap: 2px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.log-form input { width: 96px; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 8px 10px; font-family: var(--font-mono); font-size: 16px; }
+.stepper { display: flex; align-items: center; gap: 2px; }
+.stepper button { width: 34px; height: 40px; border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; cursor: pointer; font-weight: 700; }
+.sets { display: flex; gap: 6px; flex-wrap: wrap; }
+.set-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 4px 4px 10px; border-radius: 999px; background: var(--surface-2); font-family: var(--font-mono); font-size: 13px; }
+.set-chip button { border: 0; background: none; cursor: pointer; color: var(--muted); padding: 0 6px; font-size: 14px; }
+.hint { font-size: 14px; padding: 8px 12px; border-radius: 8px; background: var(--surface-2); }
+.hint b { font-family: var(--font-mono); }
+
+/* Plan editor */
+.plan-day { display: grid; gap: 10px; }
+.plan-day .day-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.plan-day .day-head input { flex: 1; min-width: 140px; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 6px 10px; font-weight: 600; }
+.plan-item { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.plan-item .nm { min-width: 0; font-weight: 500; }
+.plan-item .ctrls { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; justify-content: end; }
+.plan-item input { width: 48px; border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 4px 6px; font-family: var(--font-mono); text-align: center; }
+.plan-item .x { color: var(--muted); font-size: 13px; }
+.add-row select { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 6px 8px; max-width: 100%; }
+
+/* Progress */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; }
+.stat .v { font-family: var(--font-display); font-weight: 700; font-size: 30px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat .k { font-size: 12px; color: var(--muted); }
+.heat-wrap { overflow-x: auto; }
+.heat { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 14px); gap: 3px; width: max-content; }
+.heat i { width: 14px; height: 14px; border-radius: 3px; background: var(--surface-2); display: block; }
+.heat i.on { background: var(--cable); }
+.heat i.now { outline: 2px solid var(--ink); outline-offset: -2px; }
+.heat i.fut { background: transparent; }
+.chart { width: 100%; height: auto; display: block; }
+.chart .gridl { stroke: var(--line); stroke-width: 1; }
+.chart .axis { fill: var(--muted); font: 500 11px var(--font-mono); }
+.chart .l1 { fill: none; stroke: var(--cable); stroke-width: 2.5; }
+.chart .l2 { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.chart .area { fill: var(--cable); opacity: .1; }
+.chart .dot { fill: var(--cable); }
+.chart .end { fill: var(--surface); stroke: var(--cable); stroke-width: 3; }
+.legend { display: flex; gap: 16px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.legend i { display: inline-block; width: 16px; height: 3px; vertical-align: middle; margin-right: 6px; background: var(--cable); }
+.legend i.d { background: none; border-top: 2px dashed var(--muted); height: 0; }
+.hist { display: grid; gap: 8px; }
+.hist-day { border-top: 1px solid var(--line); padding-top: 8px; display: grid; gap: 4px; }
+.hist-day .d { font-weight: 600; }
+.hist-day .e { font-size: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+.hist-day .e .n { min-width: 0; }
+.select { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 10px; max-width: 100%; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 6px 14px; cursor: pointer; font-weight: 600; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 12px; border-radius: 8px; background: var(--surface-2); }
+
+.toast { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 14px; z-index: 20; max-width: calc(100% - 32px); }
+
+@media (max-width: 620px) {
+  .ex-row { grid-template-columns: 96px 1fr; gap: 10px; }
+  .cols { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  h2 { font-size: 26px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; }
+}
+</style>
+
+<div class="shell">
+  <header class="top">
+    <div class="brand">
+      <h1>Cable <span>Workout</span> Log</h1>
+      <div class="save-status" id="saveStatus">Loading your log…</div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button role="tab" id="tab-today" data-tab="today" aria-selected="true">Today</button>
+      <button role="tab" id="tab-plan" data-tab="plan" aria-selected="false">Plan</button>
+      <button role="tab" id="tab-library" data-tab="library" aria-selected="false">Exercises</button>
+      <button role="tab" id="tab-progress" data-tab="progress" aria-selected="false">Progress</button>
+    </nav>
+  </header>
+  <main id="view"></main>
+</div>
+
+<dialog class="sheet" id="sheet" aria-label="Exercise detail"><div class="sheet-inner" id="sheetBody"></div></dialog>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+"use strict";
+/* ============================================================
+   Exercise library
+   Pose angles are degrees from straight down; positive = forward
+   (side view) or outward (front view). a = start, b = end of the
+   working phase.
+   ============================================================ */
+const FLOOR = 222;
+const LEVELS = {
+  low:   { y: 208, name: "Low",   where: "Lowest setting, about ankle height" },
+  knee:  { y: 176, name: "Knee",  where: "About knee height" },
+  waist: { y: 134, name: "Waist", where: "About hip / belt height" },
+  chest: { y: 98,  name: "Chest", where: "About mid-chest height" },
+  head:  { y: 66,  name: "Head",  where: "About forehead height" },
+  high:  { y: 36,  name: "High",  where: "Highest setting, above your head" },
+};
+const GROUPS = { push: "Push", pull: "Pull", legs: "Legs", core: "Core" };
+
+const EX = [
+  {
+    id: "chest-press", name: "Standing cable chest press", group: "push",
+    muscles: "Chest, front delts, triceps", level: "chest", attach: "Two D-handles",
+    position: "Facing away, between the towers, staggered stance",
+    view: "side", machine: "left", grip: "hands",
+    setup: ["Set both pulleys at chest height.", "Grab a handle in each hand and step forward until the stack lifts off.", "Stagger your feet, lean slightly forward, hands beside your chest."],
+    steps: ["Press both handles straight forward until your arms are nearly locked.", "Let the hands come slightly together at the end.", "Return slowly until your elbows are just behind your torso."],
+    cues: ["Ribs down, slight forward lean", "Elbows about 45° from your body", "Exhale as you press"],
+    mistakes: ["Elbows flaring straight out to the sides", "Letting the stack pull you backward"],
+    a: { f: 1, x: 175, anchor: "L", t: 12, aL: [-60, 85], aR: [-60, 85], lL: [18, 2], lR: [-18, -22] },
+    b: { aL: [85, 88], aR: [85, 88] },
+  },
+  {
+    id: "fly-high", name: "High-to-low cable fly", group: "push",
+    muscles: "Lower chest, front delts", level: "high", attach: "Two D-handles",
+    position: "Centered between the towers, one foot forward",
+    view: "front", machine: "both", grip: "split",
+    setup: ["Set both pulleys at the top.", "Take a handle in each hand and step forward to the middle.", "Soft bend in the elbows, arms wide and up."],
+    steps: ["Sweep both hands down and in, meeting in front of your hips.", "Squeeze the chest for a second.", "Open back up slowly until you feel a stretch across the chest."],
+    cues: ["Keep the elbow bend fixed, like hugging a tree", "Lean slightly forward from the hips"],
+    mistakes: ["Turning it into a press by bending the elbows", "Going too heavy and losing the stretch"],
+    a: { view: "front", x: 160, anchor: "hip", t: 0, aL: [115, 120], aR: [115, 120], lL: [6, 3], lR: [6, 3] },
+    b: { aL: [5, -35], aR: [5, -35] },
+  },
+  {
+    id: "fly-low", name: "Low-to-high cable fly", group: "push",
+    muscles: "Upper chest, front delts", level: "low", attach: "Two D-handles",
+    position: "Centered between the towers",
+    view: "front", machine: "both", grip: "split",
+    setup: ["Set both pulleys at the bottom.", "Take a handle in each hand and step forward to the middle.", "Arms low and slightly out, palms facing forward."],
+    steps: ["Sweep the hands up and together in front of you, finishing at upper-chest height.", "Squeeze for a second.", "Lower slowly back out and down."],
+    cues: ["Lift with the chest, not the shoulders", "Keep a soft, fixed bend in the elbows"],
+    mistakes: ["Shrugging the shoulders up", "Hands finishing above your face"],
+    a: { view: "front", x: 160, anchor: "hip", t: 0, aL: [35, 30], aR: [35, 30], lL: [6, 3], lR: [6, 3] },
+    b: { aL: [90, 220], aR: [90, 220], sL: [0.3, 0.8], sR: [0.3, 0.8] },
+  },
+  {
+    id: "lateral-raise", name: "Single-arm cable lateral raise", group: "push",
+    muscles: "Side delts", level: "low", attach: "One D-handle",
+    position: "Side-on to the tower, working arm farthest from it",
+    view: "front", machine: "left", grip: "handR",
+    setup: ["Set one pulley at the bottom.", "Stand side-on and grab the handle with the hand farthest from the tower.", "The cable runs in front of your body."],
+    steps: ["Raise the arm out to the side until it is level with your shoulder.", "Pause briefly.", "Lower slowly across the body. Do all reps, then switch sides."],
+    cues: ["Lead with the elbow", "Slight lean away from the tower"],
+    mistakes: ["Swinging the torso", "Raising above shoulder height"],
+    a: { view: "front", x: 150, anchor: "hip", t: 0, aL: [10, 10], aR: [-15, -20], lL: [4, 0], lR: [4, 0] },
+    b: { aR: [85, 80] },
+  },
+  {
+    id: "front-raise", name: "Cable front raise", group: "push",
+    muscles: "Front delts", level: "low", attach: "Straight bar or rope",
+    position: "Facing away, cable between your legs",
+    view: "side", machine: "left", grip: "hands",
+    setup: ["Set the pulley at the bottom.", "Face away with the cable running between your legs.", "Hold the bar in front of your thighs, arms straight."],
+    steps: ["Raise the bar forward to shoulder height.", "Pause.", "Lower under control to your thighs."],
+    cues: ["Arms straight but not locked", "Brace your abs so you don't lean back"],
+    mistakes: ["Leaning back to swing the weight", "Going higher than shoulder level"],
+    a: { f: 1, x: 150, anchor: "L", t: 0, aL: [8, 12], aR: [8, 12], lL: [4, 0], lR: [-4, 0] },
+    b: { aL: [90, 92], aR: [90, 92] },
+  },
+  {
+    id: "pushdown", name: "Triceps pushdown", group: "push",
+    muscles: "Triceps", level: "high", attach: "Straight bar or rope",
+    position: "Facing the tower, close to it",
+    view: "side", machine: "left", grip: "hands",
+    setup: ["Set the pulley at the top.", "Face the tower, grab the attachment and step in close.", "Elbows tucked at your sides, hands at chest height."],
+    steps: ["Push the attachment down until your arms are straight.", "Squeeze the triceps (spread the rope ends apart).", "Let it rise back to chest height, elbows still pinned."],
+    cues: ["Elbows stay glued to your ribs", "Slight forward lean"],
+    mistakes: ["Elbows drifting forward", "Using body weight to push down"],
+    a: { f: -1, x: 110, anchor: "L", t: 10, aL: [12, 120], aR: [12, 120], lL: [4, 0], lR: [-4, -2] },
+    b: { aL: [6, 5], aR: [6, 5] },
+  },
+  {
+    id: "overhead-ext", name: "Overhead triceps extension", group: "push",
+    muscles: "Triceps (long head)", level: "head", attach: "Rope",
+    position: "Facing away, staggered stance, leaning forward",
+    view: "side", machine: "left", grip: "hands",
+    setup: ["Set the pulley at about forehead height.", "Hold the rope behind your head and turn to face away.", "Step out into a staggered stance and lean forward about 30°."],
+    steps: ["Extend your arms forward and up until they are straight.", "Pause.", "Bend the elbows to bring the rope back behind your head."],
+    cues: ["Upper arms stay still beside your head", "Keep your core tight"],
+    mistakes: ["Elbows flaring wide", "Moving the upper arms"],
+    a: { f: 1, x: 185, anchor: "L", t: 30, aL: [150, -15], aR: [150, -15], lL: [20, 0], lR: [-20, -25] },
+    b: { aL: [150, 150], aR: [150, 150] },
+  },
+  {
+    id: "lat-pulldown", name: "Kneeling lat pulldown", group: "pull",
+    muscles: "Lats, biceps, rear delts", level: "high", attach: "Straight bar or two D-handles",
+    position: "Kneeling, facing the tower, an arm's length back",
+    view: "side", machine: "left", grip: "hands",
+    setup: ["Set the pulley at the top.", "Grab the bar and kneel facing the tower.", "Arms straight up, slight lean back."],
+    steps: ["Pull the bar down to your upper chest, driving the elbows down.", "Squeeze your shoulder blades together.", "Let your arms rise back up slowly to a full stretch."],
+    cues: ["Chest up", "Think elbows to back pockets"],
+    mistakes: ["Rocking back to move the weight", "Pulling the bar behind your neck"],
+    a: { f: -1, x: 130, anchor: "hip", t: -8, aL: [158, 165], aR: [158, 165], lL: [0, -90], lR: [0, -90] },
+    b: { aL: [-8, 168], aR: [-8, 168] },
+  },
+  {
+    id: "row", name: "Standing cable row", group: "pull",
+    muscles: "Mid back, lats, biceps", level: "chest", attach: "V-handle or straight bar",
+    position: "Facing the tower, knees soft",
+    view: "side", machine: "left", grip: "hands",
+    setup: ["Set the pulley at chest height.", "Grab the handle and step back until your arms are straight.", "Knees soft, chest tall."],
+    steps: ["Row the handle to your lower ribs, elbows close to your body.", "Squeeze the shoulder blades together.", "Reach forward slowly until the arms are straight."],
+    cues: ["Lead with the elbows", "Keep your torso still"],
+    mistakes: ["Leaning back to finish the rep", "Shrugging the shoulders"],
+    a: { f: -1, x: 150, anchor: "L", t: 8, aL: [86, 88], aR: [86, 88], lL: [14, -12], lR: [10, -16] },
+    b: { t: 2, aL: [-55, 75], aR: [-55, 75] },
+  },
+  {
+    id: "face-pull", name: "Face pull", group: "pull",
+    muscles: "Rear delts, upper back, rotator cuff", level: "head", attach: "Rope",
+    position: "Facing the tower",
+    view: "side", machine: "left", grip: "hands",
+    setup: ["Set the pulley at forehead height or a little above.", "Grab the rope with thumbs pointing back toward you.", "Step back until your arms are straight."],
+    steps: ["Pull the rope toward your face, splitting the ends past your ears.", "Finish with elbows high and hands beside your head.", "Return slowly."],
+    cues: ["Elbows stay high, level with shoulders", "Think: show your biceps"],
+    mistakes: ["Pulling to the chest instead of the face", "Going too heavy and leaning back"],
+    a: { f: -1, x: 150, anchor: "L", t: -4, aL: [108, 108], aR: [108, 108], lL: [8, -4], lR: [-8, -10] },
+    b: { aL: [100, 168], aR: [100, 168], sL: [0.35, 1], sR: [0.35, 1] },
+  },
+  {
+    id: "straight-arm", name: "Straight-arm pulldown", group: "pull",
+    muscles: "Lats", level: "high", attach: "Straight bar or rope",
+    position: "Facing the tower, hinged forward",
+    view: "side", machine: "left", grip: "hands",
+    setup: ["Set the pulley at the top.", "Grab the bar and step back two steps.", "Hinge forward about 30° with arms straight overhead."],
+    steps: ["Sweep the bar down in an arc to your thighs, arms straight.", "Squeeze the lats.", "Let the bar rise back up slowly."],
+    cues: ["Arms stay straight the whole time", "Shoulders down, away from your ears"],
+    mistakes: ["Bending the elbows into a pushdown", "Standing too upright"],
+    a: { f: -1, x: 150, anchor: "L", t: 28, aL: [145, 148], aR: [145, 148], lL: [12, -10], lR: [12, -10] },
+    b: { aL: [-8, -8], aR: [-8, -8] },
+  },
+  {
+    id: "curl", name: "Cable biceps curl", group: "pull",
+    muscles: "Biceps", level: "low", attach: "Straight or EZ bar",
+    position: "Facing the tower",
+    view: "side", machine: "left", grip: "hands",
+    setup: ["Set the pulley at the bottom.", "Grab the bar with palms up and stand tall, one small step back.", "Arms straight, elbows at your sides."],
+    steps: ["Curl the bar up toward your shoulders.", "Squeeze at the top.", "Lower slowly until your arms are straight."],
+    cues: ["Elbows stay pinned at your sides", "Wrists straight"],
+    mistakes: ["Swinging the hips", "Elbows drifting forward at the top"],
+    a: { f: -1, x: 120, anchor: "L", t: 0, aL: [4, 2], aR: [4, 2], lL: [3, 0], lR: [-3, 0] },
+    b: { aL: [10, 145], aR: [10, 145] },
+  },
+  {
+    id: "hammer-curl", name: "Rope hammer curl", group: "pull",
+    muscles: "Biceps, brachialis, forearms", level: "low", attach: "Rope",
+    position: "Facing the tower",
+    view: "side", machine: "left", grip: "hands",
+    setup: ["Set the pulley at the bottom.", "Hold the rope ends with palms facing each other.", "Stand tall, elbows at your sides."],
+    steps: ["Curl the rope up toward your shoulders, palms still facing in.", "Squeeze.", "Lower slowly to straight arms."],
+    cues: ["Thumbs up the whole rep", "Keep the elbows still"],
+    mistakes: ["Rocking the body", "Cutting the bottom of the rep short"],
+    a: { f: -1, x: 120, anchor: "L", t: 0, aL: [4, 2], aR: [4, 2], lL: [3, 0], lR: [-3, 0] },
+    b: { aL: [10, 145], aR: [10, 145] },
+  },
+  {
+    id: "goblet-squat", name: "Cable goblet squat", group: "legs",
+    muscles: "Quads, glutes", level: "low", attach: "Rope",
+    position: "Facing the tower, feet shoulder-width",
+    view: "side", machine: "left", grip: "hands",
+    setup: ["Set the pulley at the bottom.", "Hold the rope ends at your chest.", "Step back one step, feet shoulder-width, toes slightly out."],
+    steps: ["Sit down and back until your thighs are about parallel.", "Keep your chest up and the rope at your chest.", "Drive through your whole foot to stand."],
+    cues: ["Knees track over toes", "The cable lets you sit back a little more"],
+    mistakes: ["Heels lifting", "Rounding the lower back at the bottom"],
+    a: { f: -1, x: 130, anchor: "L", t: 6, aL: [25, 165], aR: [25, 165], lL: [2, 0], lR: [2, 0] },
+    b: { t: 38, aL: [10, 150], aR: [10, 150], lL: [88, -28], lR: [88, -28] },
+  },
+  {
+    id: "pull-through", name: "Cable pull-through", group: "legs",
+    muscles: "Glutes, hamstrings", level: "low", attach: "Rope",
+    position: "Facing away, rope between your legs",
+    view: "side", machine: "left", grip: "hands",
+    setup: ["Set the pulley at the bottom.", "Face away, reach between your legs and grab the rope.", "Walk forward two steps, feet a little wider than hips."],
+    steps: ["Start hinged forward with the rope pulled back between your legs.", "Drive the hips forward to stand tall.", "Squeeze the glutes, then hinge back slowly."],
+    cues: ["It's a hip hinge, not a squat", "Arms just hold on, the hips do the work"],
+    mistakes: ["Pulling with the arms", "Over-arching the back at the top"],
+    a: { f: 1, x: 130, anchor: "L", t: 68, aL: [-55, -55], aR: [-55, -55], lL: [35, 10], lR: [35, 10] },
+    b: { t: 0, aL: [8, 8], aR: [8, 8], lL: [3, 0], lR: [3, 0] },
+  },
+  {
+    id: "kickback", name: "Glute kickback", group: "legs",
+    muscles: "Glutes", level: "low", attach: "Ankle strap",
+    position: "Facing the tower, holding the frame",
+    view: "side", machine: "left", grip: "ankleL",
+    setup: ["Set the pulley at the bottom and attach the ankle strap.", "Strap one ankle and face the tower.", "Hold the frame and lean slightly forward."],
+    steps: ["Kick the strapped leg straight back and slightly up.", "Squeeze the glute at the top.", "Return slowly. Do all reps, then switch legs."],
+    cues: ["Move from the hip, not the lower back", "Keep the standing knee soft"],
+    mistakes: ["Arching the lower back", "Swinging the leg"],
+    a: { f: -1, x: 105, anchor: "R", t: 22, aL: [72, 78], aR: [72, 78], lL: [12, 4], lR: [2, 0] },
+    b: { lL: [-42, -48] },
+  },
+  {
+    id: "abduction", name: "Standing hip abduction", group: "legs",
+    muscles: "Glute medius, outer hip", level: "low", attach: "Ankle strap",
+    position: "Side-on to the tower, strapped leg farthest from it",
+    view: "front", machine: "left", grip: "ankleR",
+    setup: ["Set the pulley at the bottom and attach the ankle strap.", "Strap the ankle farthest from the tower.", "Stand side-on and hold the tower with your near hand."],
+    steps: ["Lift the strapped leg out to the side.", "Pause.", "Lower slowly, letting the leg cross a little in front of the standing leg."],
+    cues: ["Toes point forward", "Stay tall, don't lean over"],
+    mistakes: ["Rotating the toes up", "Leaning the torso away"],
+    a: { view: "front", x: 108, anchor: "hip", t: 0, aL: [78, 88], aR: [10, 10], lL: [2, 0], lR: [-6, -6] },
+    b: { lR: [32, 32] },
+  },
+  {
+    id: "crunch", name: "Kneeling cable crunch", group: "core",
+    muscles: "Abs", level: "high", attach: "Rope",
+    position: "Kneeling, facing the tower",
+    view: "side", machine: "left", grip: "hands",
+    setup: ["Set the pulley at the top.", "Hold the rope ends beside your head and kneel about a foot from the tower.", "Hips stay high over your knees."],
+    steps: ["Curl your torso down, bringing your elbows toward your thighs.", "Exhale and squeeze the abs.", "Uncurl slowly back up."],
+    cues: ["Round the spine, keep the hips still", "Hands stay fixed by your head"],
+    mistakes: ["Sitting back onto your heels", "Pulling with the arms"],
+    a: { f: -1, x: 120, anchor: "hip", t: 8, aL: [150, -22], aR: [150, -22], lL: [0, -90], lR: [0, -90] },
+    b: { t: 66, aL: [92, -80], aR: [92, -80] },
+  },
+  {
+    id: "woodchop", name: "High-to-low woodchop", group: "core",
+    muscles: "Obliques, abs", level: "high", attach: "One D-handle (both hands)",
+    position: "Side-on to the tower, feet wide",
+    view: "front", machine: "left", grip: "hands",
+    setup: ["Set the pulley at the top.", "Stand side-on, feet wide, and grab the handle with both hands.", "Arms up toward the pulley."],
+    steps: ["Pull the handle diagonally down across your body to the far hip.", "Rotate through your torso and pivot the back foot.", "Return slowly up to the pulley. Do all reps, then switch sides."],
+    cues: ["Arms stay fairly straight, the trunk turns", "Brace before each rep"],
+    mistakes: ["Pulling only with the arms", "Rushing the return"],
+    a: { view: "front", x: 175, anchor: "hip", t: 0, aL: [130, 155], aR: [-125, -120], lL: [14, 4], lR: [14, 4] },
+    b: { aL: [-58, -52], aR: [28, 30] },
+  },
+];
+const EXMAP = Object.fromEntries(EX.map(e => [e.id, e]));
+for (const e of EX) e.b = Object.assign({}, e.a, e.b);
+
+const DAYS = [
+  ["mon", "Monday"], ["tue", "Tuesday"], ["wed", "Wednesday"], ["thu", "Thursday"],
+  ["fri", "Friday"], ["sat", "Saturday"], ["sun", "Sunday"],
+];
+const it = (id, sets, min, max) => ({ id, sets, min, max });
+const DEFAULT_PLAN = {
+  mon: { title: "Push", items: [it("chest-press", 3, 8, 12), it("fly-high", 3, 10, 15), it("lateral-raise", 3, 12, 15), it("pushdown", 3, 10, 12), it("overhead-ext", 2, 10, 12)] },
+  tue: { title: "Pull", items: [it("lat-pulldown", 4, 8, 12), it("row", 3, 8, 12), it("face-pull", 3, 12, 15), it("straight-arm", 2, 12, 15), it("curl", 3, 10, 12)] },
+  wed: { title: "Legs & core", items: [it("goblet-squat", 4, 10, 12), it("pull-through", 3, 12, 15), it("kickback", 3, 12, 15), it("abduction", 3, 15, 20), it("crunch", 3, 12, 15)] },
+  thu: { title: "Rest", items: [] },
+  fri: { title: "Upper body", items: [it("fly-low", 3, 12, 15), it("row", 3, 8, 12), it("front-raise", 3, 10, 12), it("hammer-curl", 3, 10, 12), it("overhead-ext", 3, 10, 12)] },
+  sat: { title: "Lower & core", items: [it("goblet-squat", 3, 10, 12), it("pull-through", 3, 12, 15), it("kickback", 3, 12, 15), it("woodchop", 3, 10, 12), it("crunch", 3, 12, 15)] },
+  sun: { title: "Rest", items: [] },
+};
+const clone = o => JSON.parse(JSON.stringify(o));
+
+/* ============================================================
+   Figure engine
+   ============================================================ */
+const L = { torso: 50, neck: 9, head: 11, ua: 30, fa: 27, th: 44, sh: 44, foot: 11 };
+const rad = d => d * Math.PI / 180;
+const dirv = (deg, f) => [Math.sin(rad(deg)) * f, Math.cos(rad(deg))];
+const add = (p, v, s = 1) => [p[0] + v[0] * s, p[1] + v[1] * s];
+const lerp = (a, b, k) => a + (b - a) * k;
+
+function interp(a, b, k) {
+  const o = {};
+  for (const key of Object.keys(a)) {
+    const va = a[key], vb = b[key] ?? va;
+    if (typeof va === "number") o[key] = lerp(va, vb, k);
+    else if (Array.isArray(va)) o[key] = va.map((v, i) => lerp(v, vb[i], k));
+    else o[key] = va;
+  }
+  for (const key of ["sL", "sR"]) {
+    if (!a[key] && !b[key]) continue;
+    const va = a[key] || [1, 1], vb = b[key] || [1, 1];
+    o[key] = va.map((v, i) => lerp(v, vb[i], k));
+  }
+  return o;
+}
+
+function solve(p) {
+  const front = p.view === "front";
+  const hip = [0, 0];
+  let sh, neckEnd, head, hipL, hipR, shL, shR, torsoDir;
+  if (front) {
+    shL = [-17, -L.torso]; shR = [17, -L.torso]; hipL = [-9, 0]; hipR = [9, 0];
+    neckEnd = [0, -L.torso - L.neck]; head = [0, -L.torso - L.neck - L.head];
+  } else {
+    torsoDir = [Math.sin(rad(p.t)) * p.f, -Math.cos(rad(p.t))];
+    sh = add(hip, torsoDir, L.torso);
+    neckEnd = add(sh, torsoDir, L.neck);
+    head = add(sh, torsoDir, L.neck + L.head);
+    shL = shR = sh; hipL = hipR = hip;
+  }
+  const arm = (s, ang, f, sc = [1, 1]) => {
+    const el = add(s, dirv(ang[0], f), L.ua * sc[0]);
+    return [s, el, add(el, dirv(ang[1], f), L.fa * sc[1])];
+  };
+  const leg = (h, ang, f) => {
+    const kn = add(h, dirv(ang[0], f), L.th);
+    const an = add(kn, dirv(ang[1], f), L.sh);
+    const toe = add(an, dirv(ang[1] + 90, f), L.foot);
+    return [h, kn, an, toe];
+  };
+  const fL = front ? -1 : p.f, fR = front ? 1 : p.f;
+  const pts = {
+    front, hip, sh, neckEnd, head, shL, shR,
+    armL: arm(shL, p.aL, fL, p.sL), armR: arm(shR, p.aR, fR, p.sR),
+    legL: leg(hipL, p.lL, fL), legR: leg(hipR, p.lR, fR),
+  };
+  // Ground the figure: lowest ankle or knee touches the floor.
+  const lows = [pts.legL[2][1] + 4, pts.legR[2][1] + 4, pts.legL[1][1] + 5, pts.legR[1][1] + 5];
+  const dy = FLOOR - Math.max(...lows);
+  let dx = p.x;
+  if (p.anchor === "L") dx = p.x - pts.legL[2][0];
+  else if (p.anchor === "R") dx = p.x - pts.legR[2][0];
+  const mv = q => [q[0] + dx, q[1] + dy];
+  for (const k of ["hip", "sh", "neckEnd", "head", "shL", "shR"]) if (pts[k]) pts[k] = mv(pts[k]);
+  for (const k of ["armL", "armR", "legL", "legR"]) pts[k] = pts[k].map(mv);
+  return pts;
+}
+
+function gripPoints(ex, pts) {
+  const hL = pts.armL[2], hR = pts.armR[2];
+  switch (ex.grip) {
+    case "split": return [hL, hR];
+    case "handL": return [hL];
+    case "handR": return [hR];
+    case "ankleL": return [pts.legL[2]];
+    case "ankleR": return [pts.legR[2]];
+    default: return [[(hL[0] + hR[0]) / 2, (hL[1] + hR[1]) / 2]];
+  }
+}
+function pulleyPoints(ex) {
+  const y = LEVELS[ex.level].y;
+  return ex.machine === "both" ? [[38, y], [282, y]] : [[38, y]];
+}
+
+const NS = "http://www.w3.org/2000/svg";
+function sv(tag, attrs, parent) {
+  const n = document.createElementNS(NS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+const P = pts => pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+
+const diagrams = new Set();
+function makeDiagram(ex, opts = {}) {
+  const svg = sv("svg", { viewBox: "0 0 320 240", class: "fig", role: "img",
+    "aria-label": `${ex.name}: pulley at ${LEVELS[ex.level].name.toLowerCase()} height. ${ex.position}.` });
+  const lvl = LEVELS[ex.level];
+  const towers = ex.machine === "both" ? [10, 288] : [10];
+  // height guide behind everything
+  sv("line", { x1: 40, y1: lvl.y, x2: ex.machine === "both" ? 280 : 316, y2: lvl.y, class: "guide" }, svg);
+  for (const tx of towers) {
+    sv("rect", { x: tx, y: 24, width: 22, height: FLOOR - 24, rx: 3, class: "tower" }, svg);
+    for (let y = 32; y <= 212; y += 9) sv("line", { x1: tx + 5, y1: y, x2: tx + 17, y2: y, class: "tick" }, svg);
+    sv("rect", { x: tx - 2, y: lvl.y - 7, width: 26, height: 14, rx: 3, class: "carriage" }, svg);
+  }
+  sv("line", { x1: 0, y1: FLOOR, x2: 320, y2: FLOOR, class: "floor" }, svg);
+  const label = sv("text", { x: ex.machine === "both" ? 160 : 314, y: 16, class: "lbl", "text-anchor": ex.machine === "both" ? "middle" : "end" }, svg);
+  label.textContent = (ex.view === "front" ? "Front view" : "Side view") + " · pulley " + lvl.name;
+
+  // motion path of the grip
+  const trailPts = [[], []];
+  for (let i = 0; i <= 24; i++) {
+    const g = gripPoints(ex, solve(interp(ex.a, ex.b, i / 24)));
+    g.forEach((q, j) => trailPts[j].push(q));
+  }
+  const g = sv("g", {}, svg);
+  const front = ex.view === "front";
+  const parts = {};
+  parts.cables = pulleyPoints(ex).map(() => sv("line", { class: "cable" }, g));
+  if (!front) {
+    parts.farLeg = sv("polyline", { class: "limb far" }, g);
+    parts.farArm = sv("polyline", { class: "limb far" }, g);
+    parts.torso = sv("line", { class: "torso" }, g);
+    parts.neck = sv("line", { class: "limb" }, g);
+    parts.nearLeg = sv("polyline", { class: "limb" }, g);
+  } else {
+    parts.legL = sv("polyline", { class: "limb" }, g);
+    parts.legR = sv("polyline", { class: "limb" }, g);
+    parts.torsoF = sv("polygon", { class: "torso-f" }, g);
+    parts.neck = sv("line", { class: "limb" }, g);
+    parts.armL = sv("polyline", { class: "limb" }, g);
+  }
+  parts.head = sv("circle", { r: L.head, class: "head" }, g);
+  parts.nearArm = sv("polyline", { class: "limb" }, g);
+  parts.handles = trailPts.filter(t => t.length).map(() => sv("circle", { r: 4.5, class: "handle" }, g));
+  for (const pp of pulleyPoints(ex)) sv("circle", { cx: pp[0], cy: pp[1], r: 5, class: "pulley" }, svg);
+  for (const t of trailPts) {
+    if (!t.length) continue;
+    sv("polyline", { points: P(t), class: "trail" }, svg);
+    const [x2, y2] = t[t.length - 1], [x1, y1] = t[t.length - 3];
+    const ang = Math.atan2(y2 - y1, x2 - x1), s = 7;
+    const tip = [x2 + Math.cos(ang) * 4, y2 + Math.sin(ang) * 4];
+    const l = [tip[0] - Math.cos(ang - 0.5) * s, tip[1] - Math.sin(ang - 0.5) * s];
+    const r = [tip[0] - Math.cos(ang + 0.5) * s, tip[1] - Math.sin(ang + 0.5) * s];
+    sv("polygon", { points: P([tip, l, r]), class: "arrow" }, svg);
+  }
+  const d = { ex, svg, parts, k: 0, manual: !!opts.manual, onFrame: null };
+  drawDiagram(d, 0);
+  diagrams.add(d);
+  return d;
+}
+
+function setLine(n, a, b) { n.setAttribute("x1", a[0]); n.setAttribute("y1", a[1]); n.setAttribute("x2", b[0]); n.setAttribute("y2", b[1]); }
+function drawDiagram(d, k) {
+  d.k = k;
+  const { ex, parts } = d;
+  const pts = solve(interp(ex.a, ex.b, k));
+  const grips = gripPoints(ex, pts);
+  const pulleys = pulleyPoints(ex);
+  parts.cables.forEach((c, i) => setLine(c, [pulleys[i][0] + 2, pulleys[i][1]], grips[Math.min(i, grips.length - 1)]));
+  if (!pts.front) {
+    parts.farLeg.setAttribute("points", P(pts.legR));
+    parts.farArm.setAttribute("points", P(pts.armR));
+    setLine(parts.torso, pts.hip, pts.sh);
+    setLine(parts.neck, pts.sh, pts.neckEnd);
+    parts.nearLeg.setAttribute("points", P(pts.legL));
+    parts.nearArm.setAttribute("points", P(pts.armL));
+  } else {
+    parts.legL.setAttribute("points", P(pts.legL));
+    parts.legR.setAttribute("points", P(pts.legR));
+    parts.torsoF.setAttribute("points", P([pts.shL, pts.shR, pts.legR[0], pts.legL[0]]));
+    setLine(parts.neck, [(pts.shL[0] + pts.shR[0]) / 2, pts.shL[1]], pts.neckEnd);
+    parts.armL.setAttribute("points", P(pts.armL));
+    parts.nearArm.setAttribute("points", P(pts.armR));
+  }
+  parts.head.setAttribute("cx", pts.head[0]); parts.head.setAttribute("cy", pts.head[1]);
+  parts.handles.forEach((h, i) => { h.setAttribute("cx", grips[i][0]); h.setAttribute("cy", grips[i][1]); });
+}
+
+// Tempo: 1.1 s lift, 0.35 s hold, 1.6 s lower, 0.45 s pause.
+const T_UP = 1100, T_HOLD = 350, T_DOWN = 1600, T_REST = 450, CYCLE = T_UP + T_HOLD + T_DOWN + T_REST;
+const ease = x => x < .5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+function phaseK(t) {
+  t %= CYCLE;
+  if (t < T_UP) return ease(t / T_UP);
+  if (t < T_UP + T_HOLD) return 1;
+  if (t < T_UP + T_HOLD + T_DOWN) return 1 - ease((t - T_UP - T_HOLD) / T_DOWN);
+  return 0;
+}
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+let t0 = performance.now();
+function frame(now) {
+  for (const d of diagrams) {
+    if (!d.svg.isConnected) { diagrams.delete(d); continue; }
+    if (d.manual || reduceMotion.matches) continue;
+    const k = phaseK(now - t0);
+    drawDiagram(d, k);
+    if (d.onFrame) d.onFrame(k);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+function mountDiagrams(root) {
+  root.querySelectorAll("[data-fig]").forEach(slot => {
+    const ex = EXMAP[slot.dataset.fig];
+    if (ex) slot.replaceChildren(makeDiagram(ex).svg);
+  });
+}
+
+/* ============================================================
+   Storage: per-person cloud store when available, else this browser
+   ============================================================ */
+const LS_KEY = "cable-workout-log-v1";
+const Store = {
+  mode: "loading", db: null, uid: null,
+  state: { units: "kg", plan: clone(DEFAULT_PLAN), notes: {} },
+  logs: {},
+  timers: {}, chains: {},
+  async init() {
+    let db = null, user = null;
+    if (window.claude && typeof window.claude.use === "function") {
+      try { [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]); } catch (e) { db = null; }
+    }
+    const uid = user ? await user.id() : null;
+    if (db && uid) {
+      try {
+        const snap = await db.collection("data/users/" + uid).get();
+        for (const doc of snap.docs) {
+          const data = doc.data();
+          if (doc.id === "state") this.state = normalizeState(data);
+          else if (doc.id.startsWith("log-")) this.logs[doc.id.slice(4)] = clone(data);
+        }
+        this.db = db; this.uid = uid; this.mode = "cloud";
+        return;
+      } catch (e) { /* fall through to local */ }
+    }
+    this.mode = "local";
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) { const o = JSON.parse(raw); this.state = normalizeState(o.state || {}); this.logs = o.logs || {}; }
+    } catch (e) { this.mode = "memory"; }
+  },
+  saveLocal() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify({ state: this.state, logs: this.logs })); }
+    catch (e) { this.mode = "memory"; updateStatus(); }
+  },
+  write(docId, body) {
+    if (this.mode !== "cloud") { this.saveLocal(); return; }
+    clearTimeout(this.timers[docId]);
+    setStatus("Saving…");
+    this.timers[docId] = setTimeout(() => {
+      const ref = this.db.doc("data/users/" + this.uid + "/" + docId);
+      const job = () => (body() ? ref.set(body()) : ref.delete());
+      this.chains[docId] = (this.chains[docId] || Promise.resolve())
+        .then(job)
+        .then(() => setStatus("Saved"))
+        .catch(err => {
+          setStatus("Not saved");
+          toast(err && err.code === "quota_exceeded" ? "Storage is full. Export a backup and delete old history." : "Couldn't save that change. Check your connection and try again.");
+        });
+    }, 500);
+  },
+  saveState() { this.write("state", () => clone(this.state)); },
+  saveLog(date) {
+    const log = this.logs[date];
+    if (log && !Object.keys(log.sets).length) delete this.logs[date];
+    this.write("log-" + date, () => (this.logs[date] ? clone(this.logs[date]) : null));
+  },
+};
+function normalizeState(s) {
+  return { units: s.units === "lb" ? "lb" : "kg", plan: s.plan && typeof s.plan === "object" ? s.plan : clone(DEFAULT_PLAN), notes: s.notes || {} };
+}
+
+/* ============================================================
+   Helpers
+   ============================================================ */
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const dateKey = d => { const z = n => String(n).padStart(2, "0"); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; };
+const todayKey = () => dateKey(new Date());
+const dayIdOf = d => ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][d.getDay()];
+const parseKey = k => { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (k, opts = { weekday: "short", month: "short", day: "numeric" }) => parseKey(k).toLocaleDateString(undefined, opts);
+const fmtW = w => (Math.round(w * 100) / 100).toString();
+const unit = () => Store.state.units;
+const inc = () => (unit() === "lb" ? 5 : 2.5);
+const e1rm = (w, r) => w * (1 + r / 30);
+
+function planItemFor(exId) {
+  for (const [id] of DAYS) { const f = (Store.state.plan[id]?.items || []).find(x => x.id === exId); if (f) return f; }
+  return { id: exId, sets: 3, min: 8, max: 12 };
+}
+function setsOn(date, exId) { return Store.logs[date]?.sets?.[exId] || []; }
+function lastSession(exId, before = todayKey()) {
+  const dates = Object.keys(Store.logs).filter(d => d < before && setsOn(d, exId).length).sort();
+  const d = dates[dates.length - 1];
+  return d ? { date: d, sets: setsOn(d, exId) } : null;
+}
+function suggestion(exId) {
+  const item = planItemFor(exId), last = lastSession(exId);
+  if (!last) return { text: `First time logging this. Pick a weight you can lift for ${item.max} clean reps, then stop at ${item.min}–${item.max}.`, w: null };
+  const top = Math.max(...last.sets.map(s => s.w));
+  const topSets = last.sets.filter(s => s.w === top);
+  const hitAll = last.sets.length >= item.sets && topSets.every(s => s.r >= item.max);
+  if (hitAll) return { text: `You hit ${item.max} reps on every set last time. Go up to <b>${fmtW(top + inc())} ${unit()}</b>.`, w: top + inc() };
+  return { text: `Stay at <b>${fmtW(top)} ${unit()}</b> and add a rep or two. Move up once every set reaches ${item.max}.`, w: top };
+}
+function setsText(sets) { return sets.map(s => s.r).join(", "); }
+
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 3200);
+}
+function setStatus(s) { document.getElementById("saveStatus").textContent = s; }
+function updateStatus() {
+  setStatus({ loading: "Loading your log…", cloud: "Synced to your account", local: "Saved in this browser", memory: "Not saving: storage is blocked" }[Store.mode]);
+}
+
+/* ============================================================
+   Views
+   ============================================================ */
+const ui = { tab: "today", day: dayIdOf(new Date()), group: "all", chartEx: null, confirm: null };
+try { const t = localStorage.getItem(LS_KEY + ":tab"); if (t) ui.tab = t; } catch (e) {}
+if (["today", "plan", "library", "progress"].includes(location.hash.slice(1))) ui.tab = location.hash.slice(1);
+
+function render() {
+  document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === ui.tab)));
+  const v = document.getElementById("view");
+  v.innerHTML = { today: viewToday, plan: viewPlan, library: viewLibrary, progress: viewProgress }[ui.tab]();
+  mountDiagrams(v);
+  if (ui.tab === "progress") drawChart();
+}
+
+function viewToday() {
+  const tId = dayIdOf(new Date());
+  const day = Store.state.plan[ui.day] || { title: "Rest", items: [] };
+  const dayName = DAYS.find(d => d[0] === ui.day)[1];
+  const isToday = ui.day === tId;
+  const chips = DAYS.map(([id, nm]) => `<button class="chip-btn ${id === tId ? "today" : ""}" data-day="${id}" aria-pressed="${id === ui.day}">${nm.slice(0, 3)}</button>`).join("");
+  const items = day.items.map((item, i) => {
+    const ex = EXMAP[item.id]; if (!ex) return "";
+    const done = setsOn(todayKey(), ex.id).length;
+    const last = lastSession(ex.id);
+    const note = Store.state.notes[ex.id];
+    return `<button class="ex-row" data-open="${ex.id}">
+      <div data-fig="${ex.id}"></div>
+      <div class="info">
+        <div class="row"><span class="order">${String(i + 1).padStart(2, "0")}</span><span class="name">${esc(ex.name)}</span></div>
+        <div class="row">
+          <span class="pill pulley">Pulley: ${LEVELS[ex.level].name}${note ? " · " + esc(note) : ""}</span>
+          <span class="pill">${item.sets} × ${item.min}–${item.max}</span>
+          ${done ? `<span class="pill ${done >= item.sets ? "done" : ""}">${done}/${item.sets} sets today</span>` : ""}
+        </div>
+        <div class="meta">${esc(ex.attach)} · ${last ? `Last (${fmtDate(last.date, { month: "short", day: "numeric" })}): <span class="num">${fmtW(Math.max(...last.sets.map(s => s.w)))} ${unit()} × ${setsText(last.sets)}</span>` : "Not logged yet"}</div>
+      </div>
+    </button>`;
+  }).join("");
+  return `
+    <section class="stack">
+      <div class="eyebrow">${isToday ? "Today · " + fmtDate(todayKey(), { weekday: "long", month: "long", day: "numeric" }) : dayName + " plan · sets you log go to today"}</div>
+      <h2>${esc(day.title || "Workout")}</h2>
+      <div class="daychips" aria-label="Pick a day">${chips}</div>
+    </section>
+    ${day.items.length ? `<section class="ex-list">${items}</section>` :
+      `<section class="empty rest"><h3>Rest day</h3><p>Nothing planned for ${dayName}. Walk, stretch, sleep. To train anyway, pick another day above, or add exercises in the Plan tab.</p></section>`}
+  `;
+}
+
+function viewLibrary() {
+  const chips = [["all", "All"], ...Object.entries(GROUPS)].map(([g, n]) => `<button class="chip-btn" data-group="${g}" aria-pressed="${ui.group === g}">${n}</button>`).join("");
+  const list = EX.filter(e => ui.group === "all" || e.group === ui.group).map(ex => `
+    <button class="lib-card" data-open="${ex.id}">
+      <div data-fig="${ex.id}"></div>
+      <div class="name">${esc(ex.name)}</div>
+      <div class="row"><span class="pill pulley">Pulley: ${LEVELS[ex.level].name}</span><span class="pill">${GROUPS[ex.group]}</span></div>
+      <div class="meta">${esc(ex.muscles)}</div>
+    </button>`).join("");
+  return `
+    <section class="stack">
+      <div class="eyebrow">${EX.length} cable exercises</div>
+      <h2>Exercise library</h2>
+      <p class="muted" style="margin:0">The yellow block on the tower shows where to set the pulley. The dashed line traces the path of your hands (or ankle). Tap an exercise for setup steps and to log sets.</p>
+      <div class="daychips">${chips}</div>
+    </section>
+    <section class="grid-lib">${list}</section>`;
+}
+
+function viewPlan() {
+  const opts = Object.entries(GROUPS).map(([g, n]) => `<optgroup label="${n}">${EX.filter(e => e.group === g).map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join("")}</optgroup>`).join("");
+  const days = DAYS.map(([id, nm]) => {
+    const d = Store.state.plan[id] || { title: "", items: [] };
+    const rows = d.items.map((item, i) => {
+      const ex = EXMAP[item.id]; if (!ex) return "";
+      return `<div class="plan-item">
+        <div class="nm">${esc(ex.name)} <span class="muted" style="font-size:13px">· pulley ${LEVELS[ex.level].name.toLowerCase()}</span></div>
+        <div class="ctrls">
+          <input id="p-${id}-${i}-sets" type="number" min="1" max="10" value="${item.sets}" data-pi="${id}:${i}:sets" aria-label="Sets">
+          <span class="x">sets ×</span>
+          <input id="p-${id}-${i}-min" type="number" min="1" max="50" value="${item.min}" data-pi="${id}:${i}:min" aria-label="Minimum reps">
+          <span class="x">–</span>
+          <input id="p-${id}-${i}-max" type="number" min="1" max="50" value="${item.max}" data-pi="${id}:${i}:max" aria-label="Maximum reps">
+          <button class="icon-btn" data-move="${id}:${i}:-1" aria-label="Move up" ${i === 0 ? "disabled" : ""}>↑</button>
+          <button class="icon-btn" data-move="${id}:${i}:1" aria-label="Move down" ${i === d.items.length - 1 ? "disabled" : ""}>↓</button>
+          <button class="icon-btn" data-remove="${id}:${i}" aria-label="Remove">✕</button>
+        </div>
+      </div>`;
+    }).join("");
+    return `<div class="card plan-day">
+      <div class="day-head"><h3 style="min-width:96px">${nm}</h3><input id="title-${id}" value="${esc(d.title)}" data-title="${id}" aria-label="${nm} workout name" placeholder="Rest"></div>
+      ${rows || `<div class="muted" style="font-size:14px">Rest day. Add an exercise to train.</div>`}
+      <div class="row add-row"><select id="add-${id}" aria-label="Exercise to add to ${nm}">${opts}</select><button class="btn small" data-add="${id}">Add</button></div>
+    </div>`;
+  }).join("");
+  return `
+    <section class="stack">
+      <div class="eyebrow">Weekly plan</div>
+      <h2>Your week</h2>
+      <p class="muted" style="margin:0">Set what you train each day and your rep range. When you hit the top of the range on every set, the app tells you to add weight.</p>
+    </section>
+    <section class="stack">${days}</section>
+    <section class="row">${ui.confirm === "reset"
+      ? `<div class="confirm">Replace your plan with the starter plan? Your logged sets stay. <button class="btn small danger" data-act="reset-yes">Replace plan</button><button class="btn small" data-act="cancel">Keep mine</button></div>`
+      : `<button class="btn" data-act="reset">Reset to starter plan</button>`}</section>`;
+}
+
+function weekStart(d) { const x = new Date(d); const off = (x.getDay() + 6) % 7; x.setDate(x.getDate() - off); x.setHours(0, 0, 0, 0); return x; }
+function viewProgress() {
+  const dates = Object.keys(Store.logs).filter(d => Object.keys(Store.logs[d].sets).length).sort();
+  const ws = dateKey(weekStart(new Date()));
+  const thisWeek = dates.filter(d => d >= ws);
+  let setsWeek = 0, volWeek = 0;
+  for (const d of thisWeek) for (const arr of Object.values(Store.logs[d].sets)) for (const s of arr) { setsWeek++; volWeek += s.w * s.r; }
+  // streak in weeks with at least one workout
+  const hasWeek = c => { const a = dateKey(c), e = new Date(c); e.setDate(e.getDate() + 7); const b = dateKey(e); return dates.some(d => d >= a && d < b); };
+  let streak = 0; const cur = weekStart(new Date());
+  if (!hasWeek(cur)) cur.setDate(cur.getDate() - 7);   // this week isn't over yet
+  while (hasWeek(cur)) { streak++; cur.setDate(cur.getDate() - 7); }
+  // heat map: last 16 weeks
+  const start = weekStart(new Date()); start.setDate(start.getDate() - 7 * 15);
+  const tk = todayKey(); let cells = "";
+  for (let i = 0; i < 16 * 7; i++) { const d = new Date(start); d.setDate(d.getDate() + i); const k = dateKey(d);
+    cells += `<i class="${k > tk ? "fut" : dates.includes(k) ? "on" : ""} ${k === tk ? "now" : ""}" title="${k}"></i>`; }
+  const logged = EX.filter(e => dates.some(d => setsOn(d, e.id).length));
+  if (!ui.chartEx || !logged.find(e => e.id === ui.chartEx)) ui.chartEx = logged[0]?.id || null;
+  const hist = dates.slice(-12).reverse().map(d => `<div class="hist-day"><div class="d">${fmtDate(d)}</div>${Object.entries(Store.logs[d].sets).map(([id, arr]) =>
+    `<div class="e"><span class="n">${esc(EXMAP[id]?.name || id)}</span><span class="num muted">${arr.map(s => `${fmtW(s.w)}×${s.r}`).join("  ")}</span></div>`).join("")}</div>`).join("");
+  return `
+    <section class="stack"><div class="eyebrow">Progress</div><h2>How it's going</h2></section>
+    <section class="stats">
+      <div class="stat"><div class="v">${thisWeek.length}</div><div class="k">workouts this week</div></div>
+      <div class="stat"><div class="v">${setsWeek}</div><div class="k">sets this week</div></div>
+      <div class="stat"><div class="v">${Math.round(volWeek).toLocaleString()}</div><div class="k">${unit()} lifted this week</div></div>
+      <div class="stat"><div class="v">${streak}</div><div class="k">week streak</div></div>
+    </section>
+    <section class="card stack">
+      <div class="row" style="justify-content:space-between"><h3>Last 16 weeks</h3><span class="muted" style="font-size:13px">${dates.length} workout${dates.length === 1 ? "" : "s"} logged</span></div>
+      <div class="heat-wrap"><div class="heat" aria-label="Workout days">${cells}</div></div>
+    </section>
+    <section class="card stack">
+      <div class="row" style="justify-content:space-between">
+        <h3>Strength over time</h3>
+        ${logged.length ? `<select class="select" id="chartEx" aria-label="Exercise">${logged.map(e => `<option value="${e.id}" ${e.id === ui.chartEx ? "selected" : ""}>${esc(e.name)}</option>`).join("")}</select>` : ""}
+      </div>
+      ${logged.length ? `<div id="chartBox"></div><div class="legend"><span><i></i>Heaviest set</span><span><i class="d"></i>Estimated 1-rep max</span></div>`
+        : `<div class="empty">Your chart appears here after your first logged set. Open any exercise from Today and tap <b>Log set</b>.</div>`}
+    </section>
+    ${hist ? `<section class="card stack"><h3>Recent workouts</h3><div class="hist">${hist}</div></section>` : ""}
+    <section class="card stack">
+      <h3>Settings & backup</h3>
+      <div class="row"><span>Weight units</span><span class="seg"><button data-units="kg" aria-pressed="${unit() === "kg"}">kg</button><button data-units="lb" aria-pressed="${unit() === "lb"}">lb</button></span>
+        <span class="muted" style="font-size:13px">Changes the label only. Numbers aren't converted.</span></div>
+      <div class="row"><button class="btn small" data-act="export">Export backup (.json)</button>
+        <label class="btn small" for="importFile">Import backup</label><input type="file" id="importFile" accept=".json,application/json" hidden></div>
+      ${ui.confirm && ui.confirm.import ? `<div class="confirm">Replace everything here with the backup (${ui.confirm.import.days} workout days)? <button class="btn small danger" data-act="import-yes">Replace</button><button class="btn small" data-act="cancel">Cancel</button></div>` : ""}
+      <div class="muted" style="font-size:13px">${{ cloud: "Your log is saved to your Claude account, private to you.", local: "Your log is saved in this browser only. Export a backup now and then.", memory: "This browser is blocking storage, so nothing is saved. Export before closing.", loading: "Loading…" }[Store.mode]}</div>
+    </section>`;
+}
+
+function drawChart() {
+  const box = document.getElementById("chartBox"); if (!box || !ui.chartEx) return;
+  const pts = Object.keys(Store.logs).sort().map(d => ({ d, s: setsOn(d, ui.chartEx) })).filter(x => x.s.length)
+    .map(x => ({ d: x.d, top: Math.max(...x.s.map(s => s.w)), est: Math.max(...x.s.map(s => e1rm(s.w, s.r))) }));
+  const W = 640, H = 240, ml = 44, mr = 16, mt = 14, mb = 28;
+  const lo0 = Math.min(...pts.map(p => p.top)), hi0 = Math.max(...pts.map(p => p.est));
+  const span = Math.max(hi0 - lo0, 1);
+  const step = [1, 2, 2.5, 5, 10, 20, 25, 50, 100].find(s => span / s <= 5) || 100;
+  const lo = Math.max(0, Math.floor((lo0 - span * 0.1) / step) * step), hi = Math.ceil((hi0 + span * 0.1) / step) * step;
+  const x = i => pts.length === 1 ? (ml + W - mr) / 2 : ml + (W - ml - mr) * i / (pts.length - 1);
+  const y = v => mt + (H - mt - mb) * (1 - (v - lo) / (hi - lo));
+  let s = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Heaviest set per workout">`;
+  for (let v = lo; v <= hi + 1e-9; v += step) s += `<line class="gridl" x1="${ml}" x2="${W - mr}" y1="${y(v)}" y2="${y(v)}"/><text class="axis" x="${ml - 8}" y="${y(v) + 4}" text-anchor="end">${fmtW(v)}</text>`;
+  const idx = pts.length <= 4 ? pts.map((_, i) => i) : [0, Math.round((pts.length - 1) / 2), pts.length - 1];
+  for (const i of idx) s += `<text class="axis" x="${x(i)}" y="${H - 8}" text-anchor="${pts.length === 1 ? "middle" : i === 0 ? "start" : i === pts.length - 1 ? "end" : "middle"}">${fmtDate(pts[i].d, { month: "short", day: "numeric" })}</text>`;
+  const line = k => pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p[k]).toFixed(1)}`).join("");
+  if (pts.length > 1) s += `<path class="area" d="${line("top")}L${x(pts.length - 1)},${H - mb}L${x(0)},${H - mb}Z"/>`;
+  s += `<path class="l2" d="${line("est")}"/><path class="l1" d="${line("top")}"/>`;
+  pts.forEach((p, i) => { s += i === pts.length - 1 ? `<circle class="end" cx="${x(i)}" cy="${y(p.top)}" r="5"/>` : `<circle class="dot" cx="${x(i)}" cy="${y(p.top)}" r="3"/>`; });
+  const lp = pts[pts.length - 1];
+  s += `</svg><div class="muted" style="font-size:13px">Latest: <span class="num">${fmtW(lp.top)} ${unit()}</span> heaviest set, about <span class="num">${fmtW(Math.round(lp.est))} ${unit()}</span> estimated 1-rep max.${pts.length > 1 ? ` Change since first workout: <span class="num">${lp.top - pts[0].top >= 0 ? "+" : ""}${fmtW(lp.top - pts[0].top)} ${unit()}</span>.` : ""}</div>`;
+  box.innerHTML = s;
+}
+
+/* ============================================================
+   Exercise detail sheet
+   ============================================================ */
+let sheetEx = null, sheetDiagram = null;
+function openSheet(id) {
+  sheetEx = EXMAP[id]; if (!sheetEx) return;
+  renderSheet();
+  const dlg = document.getElementById("sheet");
+  if (!dlg.open) dlg.showModal();
+}
+function renderSheet() {
+  const ex = sheetEx, item = planItemFor(ex.id), lvl = LEVELS[ex.level];
+  const today = setsOn(todayKey(), ex.id), last = lastSession(ex.id), sug = suggestion(ex.id);
+  const prefillW = today.length ? today[today.length - 1].w : (sug.w ?? "");
+  const prefillR = today.length ? today[today.length - 1].r : item.max;
+  const body = document.getElementById("sheetBody");
+  body.innerHTML = `
+    <div class="sheet-head">
+      <div class="stack" style="gap:4px"><div class="eyebrow">${GROUPS[ex.group]} · ${esc(ex.muscles)}</div><h2>${esc(ex.name)}</h2></div>
+      <button class="icon-btn" data-act="close" aria-label="Close" style="font-size:22px">✕</button>
+    </div>
+    <div class="fig-wrap">
+      <div id="sheetFig"></div>
+      <div class="fig-ctrl">
+        <button class="btn small" id="playBtn" data-act="play">${reduceMotion.matches ? "Play" : "Pause"}</button>
+        <input type="range" id="scrub" min="0" max="100" value="0" aria-label="Scrub through the movement">
+        <span class="muted" style="font-size:12px;white-space:nowrap">start → finish</span>
+      </div>
+    </div>
+    <div class="facts">
+      <div class="fact pulley-fact"><div class="k">Pulley height</div><div class="v">${lvl.name}</div><div class="s">${lvl.where}</div></div>
+      <div class="fact"><div class="k">Attachment</div><div class="v">${esc(ex.attach)}</div></div>
+      <div class="fact"><div class="k">Where you stand</div><div class="v" style="font-weight:500">${esc(ex.position)}</div></div>
+    </div>
+    <div class="stack" style="gap:6px">
+      <label for="noteInput" class="eyebrow">Setting on your machine</label>
+      <input id="noteInput" class="note-input" maxlength="40" placeholder="e.g. pin hole 4 from the bottom" value="${esc(Store.state.notes[ex.id] || "")}">
+    </div>
+    <section class="logger" aria-label="Log sets">
+      <div class="row" style="justify-content:space-between"><h3>Log today</h3><span class="pill">${item.sets} × ${item.min}–${item.max} reps</span></div>
+      <div class="hint">${sug.text}${last ? ` <span class="muted">Last time: <span class="num">${last.sets.map(s => `${fmtW(s.w)}×${s.r}`).join(", ")}</span></span>` : ""}</div>
+      <form class="log-form" id="logForm">
+        <label>Weight (${unit()})<span class="stepper"><button type="button" data-step="w:-1" aria-label="Less weight">−</button><input id="wIn" type="number" inputmode="decimal" step="any" min="0" value="${prefillW}" required><button type="button" data-step="w:1" aria-label="More weight">+</button></span></label>
+        <label>Reps<span class="stepper"><button type="button" data-step="r:-1" aria-label="Fewer reps">−</button><input id="rIn" type="number" inputmode="numeric" min="1" max="100" value="${prefillR}" required><button type="button" data-step="r:1" aria-label="More reps">+</button></span></label>
+        <button class="btn primary" type="submit">Log set</button>
+      </form>
+      <div class="sets">${today.length ? today.map((s, i) => `<span class="set-chip">${i + 1}: ${fmtW(s.w)} ${unit()} × ${s.r}<button data-delset="${i}" aria-label="Delete set ${i + 1}">✕</button></span>`).join("") : `<span class="muted" style="font-size:14px">No sets yet today.</span>`}</div>
+    </section>
+    <div class="cols">
+      <div><h3>Setup</h3><ol class="steps">${ex.setup.map(s => `<li>${esc(s)}</li>`).join("")}</ol></div>
+      <div><h3>The movement</h3><ol class="steps">${ex.steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol></div>
+      <div><h3>Cues</h3><ul class="cues">${ex.cues.map(s => `<li>${esc(s)}</li>`).join("")}</ul></div>
+      <div><h3>Common mistakes</h3><ul class="cues">${ex.mistakes.map(s => `<li>${esc(s)}</li>`).join("")}</ul></div>
+    </div>`;
+  const wasManual = sheetDiagram ? sheetDiagram.manual : reduceMotion.matches;
+  sheetDiagram = makeDiagram(ex, { manual: wasManual });
+  document.getElementById("sheetFig").appendChild(sheetDiagram.svg);
+  const scrub = document.getElementById("scrub");
+  sheetDiagram.onFrame = k => { scrub.value = Math.round(k * 100); };
+  document.getElementById("playBtn").textContent = sheetDiagram.manual ? "Play" : "Pause";
+  scrub.value = Math.round(sheetDiagram.k * 100);
+}
+
+/* ============================================================
+   Events
+   ============================================================ */
+document.querySelector("nav.tabs").addEventListener("click", e => {
+  const b = e.target.closest("[data-tab]"); if (!b) return;
+  ui.tab = b.dataset.tab; ui.confirm = null;
+  try { localStorage.setItem(LS_KEY + ":tab", ui.tab); } catch (err) {}
+  render(); window.scrollTo(0, 0);
+});
+
+const view = document.getElementById("view");
+view.addEventListener("click", e => {
+  const t = e.target.closest("button, [data-open]"); if (!t) return;
+  const ds = t.dataset;
+  if (ds.open) return openSheet(ds.open);
+  if (ds.day) { ui.day = ds.day; return render(); }
+  if (ds.group) { ui.group = ds.group; return render(); }
+  const plan = Store.state.plan;
+  if (ds.add) {
+    const sel = document.getElementById("add-" + ds.add);
+    plan[ds.add] = plan[ds.add] || { title: "", items: [] };
+    plan[ds.add].items.push({ ...planItemFor(sel.value), id: sel.value });
+    if (!plan[ds.add].title || plan[ds.add].title === "Rest") plan[ds.add].title = "Workout";
+    Store.saveState(); return render();
+  }
+  if (ds.remove) { const [d, i] = ds.remove.split(":"); plan[d].items.splice(+i, 1); Store.saveState(); return render(); }
+  if (ds.move) { const [d, i, dir] = ds.move.split(":"); const a = plan[d].items, j = +i + +dir; [a[i], a[j]] = [a[j], a[i]]; Store.saveState(); return render(); }
+  if (ds.units) { Store.state.units = ds.units; Store.saveState(); return render(); }
+  switch (ds.act) {
+    case "reset": ui.confirm = "reset"; return render();
+    case "reset-yes": Store.state.plan = clone(DEFAULT_PLAN); ui.confirm = null; Store.saveState(); toast("Plan reset to the starter plan"); return render();
+    case "cancel": ui.confirm = null; return render();
+    case "export": return exportData();
+    case "import-yes": return applyImport();
+  }
+});
+view.addEventListener("change", e => {
+  const t = e.target;
+  if (t.dataset.pi) {
+    const [d, i, f] = t.dataset.pi.split(":"); const item = Store.state.plan[d].items[+i];
+    const v = Math.max(1, Math.min(50, parseInt(t.value, 10) || 1)); item[f] = v;
+    if (item.min > item.max) { if (f === "min") item.max = item.min; else item.min = item.max; }
+    Store.saveState(); return render();
+  }
+  if (t.dataset.title) { Store.state.plan[t.dataset.title].title = t.value.trim().slice(0, 40); Store.saveState(); return; }
+  if (t.id === "chartEx") { ui.chartEx = t.value; return drawChart(); }
+  if (t.id === "importFile" && t.files[0]) {
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const o = JSON.parse(r.result);
+        if (!o || typeof o !== "object" || !o.logs || !o.state) throw 0;
+        ui.confirm = { import: { data: o, days: Object.keys(o.logs).length } }; render();
+      } catch (err) { toast("That file isn't a Cable Workout Log backup."); }
+    };
+    r.readAsText(t.files[0]);
+  }
+});
+
+async function exportData() {
+  const data = JSON.stringify({ app: "cable-workout-log", version: 1, exported: new Date().toISOString(), state: Store.state, logs: Store.logs }, null, 2);
+  const filename = `cable-workout-backup-${todayKey()}.json`;
+  let dl = null;
+  if (window.claude && typeof window.claude.use === "function") { try { dl = await window.claude.use("downloads"); } catch (e) {} }
+  if (dl) {
+    try { await dl.save({ filename, data }); } catch (e) { if (e && e.code !== "declined") toast("Couldn't save the backup file here."); }
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([data], { type: "application/json" })); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function applyImport() {
+  const o = ui.confirm.import.data; ui.confirm = null;
+  const old = Object.keys(Store.logs);
+  Store.state = normalizeState(o.state); Store.logs = {};
+  for (const [d, log] of Object.entries(o.logs)) if (/^\d{4}-\d{2}-\d{2}$/.test(d) && log && log.sets) Store.logs[d] = { date: d, sets: log.sets };
+  Store.saveState();
+  for (const d of new Set([...old, ...Object.keys(Store.logs)])) Store.saveLog(d);
+  toast("Backup imported"); render();
+}
+
+const sheet = document.getElementById("sheet");
+sheet.addEventListener("click", e => {
+  if (e.target === sheet) return sheet.close();
+  const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.act === "close") return sheet.close();
+  if (t.dataset.act === "play") {
+    sheetDiagram.manual = !sheetDiagram.manual; t.textContent = sheetDiagram.manual ? "Play" : "Pause";
+    if (!sheetDiagram.manual && reduceMotion.matches) {
+      // Reduced motion: step through manually instead of looping.
+      sheetDiagram.manual = true; t.textContent = "Play";
+      const target = sheetDiagram.k < 0.5 ? 1 : 0; drawDiagram(sheetDiagram, target); document.getElementById("scrub").value = target * 100;
+    }
+    return;
+  }
+  if (t.dataset.step) {
+    const [f, dir] = t.dataset.step.split(":"); const inp = document.getElementById(f === "w" ? "wIn" : "rIn");
+    const cur = parseFloat(inp.value) || 0; const nv = Math.max(f === "w" ? 0 : 1, cur + (+dir) * (f === "w" ? inc() : 1));
+    inp.value = fmtW(nv); return;
+  }
+  if (t.dataset.delset !== undefined) {
+    const d = todayKey(); setsOn(d, sheetEx.id).splice(+t.dataset.delset, 1);
+    if (!setsOn(d, sheetEx.id).length && Store.logs[d]) delete Store.logs[d].sets[sheetEx.id];
+    Store.saveLog(d); renderSheet(); render(); return;
+  }
+});
+sheet.addEventListener("input", e => {
+  if (e.target.id === "scrub") { sheetDiagram.manual = true; document.getElementById("playBtn").textContent = "Play"; drawDiagram(sheetDiagram, e.target.value / 100); }
+});
+sheet.addEventListener("change", e => {
+  if (e.target.id === "noteInput") {
+    const v = e.target.value.trim().slice(0, 40);
+    if (v) Store.state.notes[sheetEx.id] = v; else delete Store.state.notes[sheetEx.id];
+    Store.saveState(); render();
+  }
+});
+sheet.addEventListener("submit", e => {
+  e.preventDefault();
+  const w = parseFloat(document.getElementById("wIn").value), r = parseInt(document.getElementById("rIn").value, 10);
+  if (!(w >= 0) || !(r >= 1)) { toast("Enter a weight and at least 1 rep."); return; }
+  const d = todayKey();
+  Store.logs[d] = Store.logs[d] || { date: d, sets: {} };
+  (Store.logs[d].sets[sheetEx.id] = Store.logs[d].sets[sheetEx.id] || []).push({ w, r });
+  Store.saveLog(d);
+  const n = setsOn(d, sheetEx.id).length, target = planItemFor(sheetEx.id).sets;
+  toast(n >= target ? `Set ${n} logged. That's all ${target} sets.` : `Set ${n} of ${target} logged`);
+  renderSheet(); render();
+});
+
+/* ============================================================
+   Boot
+   ============================================================ */
+render();
+Store.init().then(() => { updateStatus(); render(); });
+</script>
