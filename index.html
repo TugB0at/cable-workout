@@ -551,9 +551,9 @@ const DEFAULT_PLAN = {
   mon: { title: "Push", items: [it("chest-press", 3, 8, 12), it("fly-high", 3, 10, 15), it("shoulder-press", 3, 8, 12), it("cross-lateral", 3, 12, 15), it("pushdown", 3, 10, 12)] },
   tue: { title: "Pull", items: [it("lat-pulldown", 4, 8, 12), it("row", 3, 8, 12), it("face-pull", 3, 12, 15), it("straight-arm", 2, 12, 15), it("curl", 3, 10, 12)] },
   wed: { title: "Legs & core", items: [it("goblet-squat", 4, 10, 12), it("rdl", 3, 8, 12), it("pull-through", 3, 12, 15), it("crunch", 3, 12, 15)] },
-  thu: { title: "Rest", items: [] },
-  fri: { title: "Upper body", items: [it("fly-low", 3, 12, 15), it("lat-pulldown", 3, 10, 12), it("rear-delt-fly", 3, 12, 15), it("overhead-ext", 3, 10, 12), it("hammer-curl", 3, 10, 12)] },
-  sat: { title: "Lower & core", items: [it("goblet-squat", 3, 10, 12), it("rdl", 3, 8, 12), it("pull-through", 3, 12, 15), it("front-raise", 2, 10, 12), it("crunch", 3, 12, 15)] },
+  thu: { title: "Upper body", items: [it("fly-low", 3, 12, 15), it("lat-pulldown", 3, 10, 12), it("rear-delt-fly", 3, 12, 15), it("overhead-ext", 3, 10, 12), it("hammer-curl", 3, 10, 12)] },
+  fri: { title: "Lower & core", items: [it("goblet-squat", 3, 10, 12), it("rdl", 3, 8, 12), it("pull-through", 3, 12, 15), it("front-raise", 2, 10, 12), it("crunch", 3, 12, 15)] },
+  sat: { title: "Rest", items: [] },
   sun: { title: "Rest", items: [] },
 };
 // Exercises that were removed, and what a saved plan uses instead (null = drop it).
@@ -817,7 +817,7 @@ function mountDiagrams(root) {
 const LS_KEY = "cable-workout-log-v1";
 const Store = {
   mode: "loading", db: null, uid: null,
-  state: { units: "kg", plan: clone(DEFAULT_PLAN), notes: {} },
+  state: { units: "kg", plan: clone(DEFAULT_PLAN), notes: {}, planVersion: 2 },
   logs: {},
   timers: {}, chains: {},
   async init() {
@@ -879,7 +879,12 @@ function normalizeState(s) {
     day.items = day.items.map(x => (x.id in RETIRED ? (RETIRED[x.id] ? { ...x, id: RETIRED[x.id] } : null) : x))
       .filter(x => x && EXMAP[x.id] && !seen.has(x.id) && seen.add(x.id));
   }
-  return { units: s.units === "lb" ? "lb" : "kg", plan, notes: s.notes || {} };
+  // v2: weekends are rest days. Older plans rested Thursday and trained Friday + Saturday,
+  // so slide Fri -> Thu and Sat -> Fri, keeping any edits.
+  if ((s.planVersion || 1) < 2 && plan.thu && !(plan.thu.items || []).length && plan.sat && (plan.sat.items || []).length) {
+    plan.thu = plan.fri; plan.fri = plan.sat; plan.sat = { title: "Rest", items: [] };
+  }
+  return { units: s.units === "lb" ? "lb" : "kg", plan, notes: s.notes || {}, planVersion: 2 };
 }
 
 /* ============================================================
