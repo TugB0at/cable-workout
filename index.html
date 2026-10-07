@@ -817,7 +817,7 @@ function mountDiagrams(root) {
 const LS_KEY = "cable-workout-log-v1";
 const Store = {
   mode: "loading", db: null, uid: null,
-  state: { units: "kg", plan: clone(DEFAULT_PLAN), notes: {}, planVersion: 2 },
+  state: { units: "lb", plan: clone(DEFAULT_PLAN), notes: {}, planVersion: 3 },
   logs: {},
   timers: {}, chains: {},
   async init() {
@@ -884,7 +884,9 @@ function normalizeState(s) {
   if ((s.planVersion || 1) < 2 && plan.thu && !(plan.thu.items || []).length && plan.sat && (plan.sat.items || []).length) {
     plan.thu = plan.fri; plan.fri = plan.sat; plan.sat = { title: "Rest", items: [] };
   }
-  return { units: s.units === "lb" ? "lb" : "kg", plan, notes: s.notes || {}, planVersion: 2 };
+  // v3: pounds by default (the Arcadia stack is marked in lb). Only keep kg if picked after that.
+  const units = s.units === "kg" && (s.planVersion || 1) >= 3 ? "kg" : "lb";
+  return { units, plan, notes: s.notes || {}, planVersion: 3 };
 }
 
 /* ============================================================
@@ -1091,7 +1093,7 @@ function viewProgress() {
     ${hist ? `<section class="card stack"><h3>Recent workouts</h3><div class="hist">${hist}</div></section>` : ""}
     <section class="card stack">
       <h3>Settings & backup</h3>
-      <div class="row"><span>Weight units</span><span class="seg"><button data-units="kg" aria-pressed="${unit() === "kg"}">kg</button><button data-units="lb" aria-pressed="${unit() === "lb"}">lb</button></span>
+      <div class="row"><span>Weight units</span><span class="seg"><button data-units="lb" aria-pressed="${unit() === "lb"}">lb</button><button data-units="kg" aria-pressed="${unit() === "kg"}">kg</button></span>
         <span class="muted" style="font-size:13px">Changes the label only. Numbers aren't converted.</span></div>
       <div class="row"><button class="btn small" data-act="export">Export backup (.json)</button>
         <label class="btn small" for="importFile">Import backup</label><input type="file" id="importFile" accept=".json,application/json" hidden></div>
