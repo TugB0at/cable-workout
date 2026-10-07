@@ -634,9 +634,9 @@ async function balanceTests(browser, url) {
       const minor = ["forearms", "obliques", "lower-back"];
       const off = Object.entries(plan).filter(([m, v]) => !minor.includes(m) && (v < 10 || v > 20)).map(([m, v]) => `${m} ${v}`);
       const days = Object.entries(DEFAULT_PLAN).map(([d, x]) => [d, x.items.reduce((a, i) => a + i.sets, 0)]).filter(([, n]) => n > 18).map(([d, n]) => `${d} ${n}`);
-      return { off, days, quads: plan.quads, calves: plan.calves, glutes: plan.glutes };
+      return { off, days, quads: plan.quads, calves: plan.calves, glutes: plan.glutes, traps: plan.traps };
     });
-    !r.off.length && !r.days.length ? pass(`every main muscle 10–20 sets a week (quads ${r.quads}, calves ${r.calves}, glutes ${r.glutes}); no day over 18 sets`) : fail(`plan balance: ${JSON.stringify(r)}`);
+    !r.off.length && !r.days.length ? pass(`every main muscle 10–20 sets a week (quads ${r.quads}, calves ${r.calves}, traps ${r.traps}, glutes ${r.glutes}); no day over 18 sets`) : fail(`plan balance: ${JSON.stringify(r)}`);
     await ctx.close();
   }
   for (const [label, edit] of [["untouched starter plan", false], ["edited plan", true]]) {
@@ -666,22 +666,22 @@ async function trapsAndWeeklyTests(browser, url) {
   {
     const ctx = await browser.newContext(mobile), page = await ctx.newPage();
     await page.goto(url);
-    const r = await page.evaluate(() => {
-      openSheet("shrug");
-      const main = [...document.querySelectorAll("dialog[open] .musc .mchip.p")].map(c => c.textContent).join();
-      const shaded = document.querySelectorAll("dialog[open] .musc .mm .p").length;
-      document.getElementById("sheet").close();
-      return { main, shaded, tue: Store.state.plan.tue.items.map(x => x.id).includes("shrug"), count: EX.length };
-    });
-    r.main === "Traps" && r.shaded >= 3 && r.tue && r.count === 23 ? pass("cable shrug: works the traps (shaded front and back), on Tuesday's plan") : fail(`shrug: ${JSON.stringify(r)}`);
+    await tap(page, 'nav.tabs [data-tab="library"]', "the exercises tab");
+    const r = await page.evaluate(() => ({
+      inLibrary: !!document.querySelector('[data-open="shrug"]'), inAddList: !!document.querySelector('option[value="shrug"]'),
+      inPlan: Object.values(Store.state.plan).some(d => d.items.some(x => x.id === "shrug")), shown: document.querySelectorAll(".lib-card").length,
+      trapsMap: (() => { openSheet("lu-raise"); const n = document.querySelectorAll("dialog[open] .musc .mm .p").length; document.getElementById("sheet").close(); return n; })(),
+    }));
+    !r.inLibrary && !r.inAddList && !r.inPlan && r.shown === 22 && r.trapsMap >= 3 ? pass("no shrugs: not in the plan or the library; the Lu raise shades traps front and back") : fail(`shrugs gone: ${JSON.stringify(r)}`);
+    await tap(page, 'nav.tabs [data-tab="today"]', "the today tab");
     // Log 3 sets of chest press this week: chest 3 (main), front delts and triceps 1½ each (also worked).
     await tap(page, '[data-day="mon"]', "Monday"); await tap(page, '[data-open="chest-press"]', "chest press");
     for (const reps of ["10", "10", "10"]) { await page.fill("#wIn", "100"); await page.fill("#rIn", reps); await tap(page, '#logForm button[type="submit"]', "Log set"); }
     await page.evaluate(() => document.getElementById("sheet").close()); await page.waitForTimeout(300);
     await tap(page, 'nav.tabs [data-tab="progress"]', "the progress tab");
     const rows = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll(".ms-row")].map(r => [r.querySelector(".ms-name").textContent, r.querySelector(".ms-val").textContent])));
-    rows.Chest === "3/10" && rows["Front delts"] === "1½/11" && rows.Triceps === "1½/10½" && rows.Traps === "0/11½" && rows.Glutes === "0/17" && rows.Calves === "0/10"
-      ? pass("sets per muscle this week: Chest 3/10, Front delts 1½/11, Triceps 1½/10½") : fail(`sets per muscle: ${JSON.stringify(rows)}`);
+    rows.Chest === "3/10" && rows["Front delts"] === "1½/11½" && rows.Triceps === "1½/12" && rows.Traps === "0/10" && rows["Side delts"] === "0/11½" && rows.Glutes === "0/17" && rows.Calves === "0/10"
+      ? pass("sets per muscle this week: Chest 3/10, Front delts 1½/11½, Triceps 1½/12; traps planned 10 without shrugs") : fail(`sets per muscle: ${JSON.stringify(rows)}`);
     await tap(page, '[data-week="-1"]', "Last week");
     const last = await page.evaluate(() => document.querySelector(".ms-row .ms-val").textContent);
     last === "0/10" ? pass("Last week shows last week's sets") : fail(`last week chest: ${last}`);
@@ -705,22 +705,47 @@ async function trapsAndWeeklyTests(browser, url) {
   {
     const ctx = await browser.newContext(mobile), page0 = await ctx.newPage();
     await page0.goto(url);
-    const old = await page0.evaluate(() => { const p = clone(DEFAULT_PLAN); p.thu.items = p.thu.items.map(x => (x.id === "lu-raise" ? { ...x, id: "cross-lateral", min: 12 } : x)); return { state: { units: "lb", planVersion: 5, plan: p }, logs: {} }; });
+    const old = await page0.evaluate(() => {                                  // the plan as the balance pass shipped it (v5)
+      const p = clone(DEFAULT_PLAN), lat = { id: "cross-lateral", sets: 3, min: 12, max: 15 };
+      p.mon.items = p.mon.items.map(x => (x.id === "lu-raise" ? lat : x));
+      p.thu.items = p.thu.items.map(x => (x.id === "lu-raise" ? { ...lat } : x));
+      p.tue.items = p.tue.items.map(x => (x.id === "straight-arm" ? { id: "shrug", sets: 4, min: 10, max: 15 } : x));
+      return { state: { units: "lb", planVersion: 5, plan: p }, logs: {} };
+    });
     await page0.close();
     await ctx.addInitScript(([key, value]) => { localStorage.setItem(key, value); }, [LS_KEY, JSON.stringify(old)]);
     const page = await ctx.newPage(); await page.goto(url);
-    const st = await page.evaluate(() => ({ thu: Store.state.plan.thu.items.map(x => x.id).join(), mon: Store.state.plan.mon.items.map(x => x.id).includes("cross-lateral") }));
-    st.thu.includes("lu-raise") && !st.thu.includes("cross-lateral") && st.mon ? pass("saved plans: Thursday's lateral raise becomes the Lu raise (Monday's stays)") : fail(`Lu raise swap: ${JSON.stringify(st)}`);
+    const st = await page.evaluate(() => ({ thu: Store.state.plan.thu.items.map(x => x.id).join(), same: planSig(Store.state.plan) === planSig(DEFAULT_PLAN) }));
+    st.same && st.thu.includes("lu-raise") && !st.thu.includes("cross-lateral") ? pass("the balance-pass plan updates to today's plan: Lu raises Monday and Thursday, no shrug") : fail(`Lu raise swap: ${JSON.stringify(st)}`);
     await ctx.close();
   }
-  // A plan saved before the shrug existed gets it on Tuesday.
+  // The plan saved by the previous version (shrug on Tuesday, lateral raise on Monday): the shrug's
+  // spot goes to straight-arm pulldowns and Monday's lateral raise becomes a Lu raise.
+  {
+    const ctx = await browser.newContext(mobile), page0 = await ctx.newPage();
+    await page0.goto(url);
+    const old = await page0.evaluate(() => {
+      const p = clone(DEFAULT_PLAN);
+      p.mon.items = p.mon.items.map(x => (x.id === "lu-raise" ? { id: "cross-lateral", sets: 3, min: 12, max: 15 } : x));
+      p.tue.items = p.tue.items.map(x => (x.id === "straight-arm" ? { id: "shrug", sets: 4, min: 10, max: 15 } : x));
+      return { state: { units: "lb", planVersion: 6, plan: p }, logs: {} };
+    });
+    await page0.close();
+    await ctx.addInitScript(([key, value]) => { localStorage.setItem(key, value); }, [LS_KEY, JSON.stringify(old)]);
+    const page = await ctx.newPage(); await page.goto(url);
+    const st = await page.evaluate(() => ({ mon: Store.state.plan.mon.items.map(x => `${x.id}:${x.sets}`).join(), tue: Store.state.plan.tue.items.map(x => x.id).join(), same: planSig(Store.state.plan) === planSig(DEFAULT_PLAN) }));
+    st.same && st.tue === "lat-pulldown,row,face-pull,straight-arm,curl" && st.mon.includes("lu-raise:4")
+      ? pass("saved plan: shrug replaced by straight-arm pulldowns, Monday's lateral raise is now a Lu raise") : fail(`no-shrug update: ${JSON.stringify(st)}`);
+    await ctx.close();
+  }
+  // A plan saved long before (no shrug) doesn't get one.
   {
     const ctx = await browser.newContext(mobile);
     const old = { state: { units: "lb", planVersion: 3, plan: { tue: { title: "Pull", items: [{ id: "row", sets: 3, min: 8, max: 12 }] }, thu: { title: "Rest", items: [] } } }, logs: {} };
     await ctx.addInitScript(([key, value]) => { if (!localStorage.getItem(key)) localStorage.setItem(key, value); }, [LS_KEY, JSON.stringify(old)]);
     const page = await ctx.newPage(); await page.goto(url);
     const tue = await page.evaluate(() => Store.state.plan.tue.items.map(x => x.id).join());
-    tue === "row,shrug" ? pass("saved plans get the shrug added to Tuesday") : fail(`saved plan Tuesday: ${tue}`);
+    tue === "row" ? pass("older saved plans don't get a shrug") : fail(`older saved plan Tuesday: ${tue}`);
     await ctx.close();
   }
 }

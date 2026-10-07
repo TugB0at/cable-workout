@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#11161b">
-<meta name="app-version" content="2026.10.07-14">
+<meta name="app-version" content="2026.10.07-15">
 <meta name="description" content="Cable machine workouts by day, with pulley-height diagrams, set logging and progress charts.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -682,7 +682,7 @@ const EX = [
     b: { sL: [1, 1], sR: [1, 1] },
   },
   {
-    id: "shrug", name: "Cable shrug", group: "pull",
+    id: "shrug", name: "Cable shrug", group: "pull", retired: true,     // not offered anywhere; kept for old logs
     muscles: "Traps", level: "low", attach: "2 D-handles",
     position: "Centered between the towers, arms at your sides",
     view: "front", machine: "both", grip: "split",
@@ -923,8 +923,8 @@ const it = (id, sets, min, max) => ({ id, sets, min, max });
 // Balanced so every main muscle gets 10-17 sets a week (a set counts 1 for its main muscles,
 // 1/2 for the ones it also works) at 17-18 sets a session.
 const DEFAULT_PLAN = {
-  mon: { title: "Push", items: [it("chest-press", 4, 8, 12), it("fly-high", 3, 10, 15), it("shoulder-press", 3, 8, 12), it("cross-lateral", 3, 12, 15), it("pushdown", 4, 10, 12)] },
-  tue: { title: "Pull", items: [it("lat-pulldown", 4, 8, 12), it("row", 3, 8, 12), it("face-pull", 3, 12, 15), it("shrug", 4, 10, 15), it("curl", 3, 10, 12)] },
+  mon: { title: "Push", items: [it("chest-press", 4, 8, 12), it("fly-high", 3, 10, 15), it("shoulder-press", 3, 8, 12), it("lu-raise", 4, 10, 15), it("pushdown", 4, 10, 12)] },
+  tue: { title: "Pull", items: [it("lat-pulldown", 4, 8, 12), it("row", 3, 8, 12), it("face-pull", 3, 12, 15), it("straight-arm", 3, 12, 15), it("curl", 3, 10, 12)] },
   wed: { title: "Legs & core", items: [it("front-squat", 3, 8, 12), it("rdl", 4, 8, 12), it("pull-through", 3, 12, 15), it("calf-raise", 5, 12, 15), it("crunch", 3, 12, 15)] },
   thu: { title: "Upper body", items: [it("fly-low", 3, 12, 15), it("lat-pulldown", 3, 10, 12), it("lu-raise", 3, 10, 15), it("rear-delt-fly", 3, 12, 15), it("overhead-ext", 3, 10, 12), it("hammer-curl", 2, 10, 12)] },
   fri: { title: "Lower & core", items: [it("goblet-squat", 4, 10, 12), it("front-squat", 3, 8, 12), it("rdl", 3, 8, 12), it("calf-raise", 5, 12, 15), it("crunch", 3, 12, 15)] },
@@ -944,7 +944,7 @@ const PLAN_V4 = {
 };
 const planSig = plan => DAYS.map(([d]) => `${(plan[d] && plan[d].title) || ""}:${((plan[d] && plan[d].items) || []).map(x => `${x.id}/${x.sets}/${x.min}/${x.max}`).join(",")}`).join("|");
 // Exercises that were removed, and what a saved plan uses instead (null = drop it).
-const RETIRED = { "lateral-raise": "cross-lateral", kickback: "rdl", abduction: null, woodchop: null };
+const RETIRED = { "lateral-raise": "cross-lateral", kickback: "rdl", abduction: null, woodchop: null, shrug: null };
 const clone = o => JSON.parse(JSON.stringify(o));
 
 /* ============================================================
@@ -1215,7 +1215,7 @@ function mountDiagrams(root) {
 const LS_KEY = "cable-workout-log-v1";   // keep: renaming this would lose saved workouts
 const Store = {
   mode: "loading", db: null, uid: null,
-  state: { units: "lb", plan: clone(DEFAULT_PLAN), notes: {}, rest: 90, beep: true, weighIns: [], planOffer: false, planVersion: 6 },
+  state: { units: "lb", plan: clone(DEFAULT_PLAN), notes: {}, rest: 90, beep: true, weighIns: [], planOffer: false, planVersion: 7 },
   logs: {},
   timers: {}, chains: {},
   async init() {
@@ -1304,6 +1304,8 @@ window.addEventListener("storage", e => {
 });
 function normalizeState(s) {
   const plan = s.plan && typeof s.plan === "object" ? s.plan : clone(DEFAULT_PLAN);
+  const shrugAt = {};          // where a shrug sat before shrugs were dropped (v7 fills the spot)
+  for (const [d, day] of Object.entries(plan)) if (day && Array.isArray(day.items)) { const k = day.items.findIndex(x => x.id === "shrug"); if (k >= 0) shrugAt[d] = k; }
   for (const day of Object.values(plan)) {
     if (!day || !Array.isArray(day.items)) continue;
     const seen = new Set();
@@ -1318,15 +1320,12 @@ function normalizeState(s) {
   // v3: pounds by default (the Arcadia stack is marked in lb). Only keep kg if picked after that.
   const units = s.units === "kg" && (s.planVersion || 1) >= 3 ? "kg" : "lb";
   const rest = [60, 90, 120, 180].includes(s.rest) ? s.rest : 90;
-  // v4: the shrug was added; put it on Tuesday if Tuesday is a training day and it isn't planned yet.
-  if ((s.planVersion || 1) < 4 && plan.tue && Array.isArray(plan.tue.items) && plan.tue.items.length
-      && !Object.values(plan).some(d => d && Array.isArray(d.items) && d.items.some(x => x.id === "shrug"))) {
-    plan.tue.items.push({ id: "shrug", sets: 3, min: 10, max: 15 });
-  }
   // v5: the balance pass. An untouched starter plan moves to the balanced one.
   let planOffer = s.planOffer === true, newPlan = plan;
   if ((s.planVersion || 1) < 5) {
-    if (planSig(plan) === planSig(PLAN_V4)) newPlan = clone(DEFAULT_PLAN);
+    // compare without exercises that have since been dropped (the shrug), as they're already gone from `plan`
+    const v4 = clone(PLAN_V4); for (const d of Object.values(v4)) d.items = d.items.filter(x => RETIRED[x.id] !== null);
+    if (planSig(plan) === planSig(v4)) newPlan = clone(DEFAULT_PLAN);
     else if (planSig(plan) !== planSig(DEFAULT_PLAN)) planOffer = true;
   }
   // v6: the Lu raise was added. It takes Thursday's lateral raise, or joins Thursday if that's a training day.
@@ -1335,11 +1334,21 @@ function normalizeState(s) {
     if (k >= 0) thu.items[k] = { id: "lu-raise", sets: thu.items[k].sets, min: 10, max: 15 };
     else if (thu && Array.isArray(thu.items) && thu.items.length) thu.items.push({ id: "lu-raise", sets: 3, min: 10, max: 15 });
   }
+  // v7: no shrugs. Where a plan had one, a straight-arm pulldown takes its place, and Monday's
+  // lateral raise becomes a Lu raise so the traps keep getting direct work.
+  if ((s.planVersion || 1) < 7 && newPlan === plan && Object.keys(shrugAt).length) {
+    for (const [d, k] of Object.entries(shrugAt)) {
+      const items = newPlan[d].items;
+      if (!items.some(x => x.id === "straight-arm")) items.splice(Math.min(k, items.length), 0, { id: "straight-arm", sets: 3, min: 12, max: 15 });
+    }
+    const mon = newPlan.mon, m = mon && Array.isArray(mon.items) ? mon.items.findIndex(x => x.id === "cross-lateral") : -1;
+    if (m >= 0 && !mon.items.some(x => x.id === "lu-raise")) mon.items[m] = { id: "lu-raise", sets: 4, min: 10, max: 15 };
+  }
   let weighIns = Array.isArray(s.weighIns)
     ? s.weighIns.filter(x => x && /^\d{4}-\d{2}-\d{2}$/.test(x.d) && +x.w > 0 && +x.w < 1000).map(x => ({ d: x.d, w: +x.w })) : [];
   if (!weighIns.length && +s.bodyWeight > 0 && +s.bodyWeight < 1000) weighIns = [{ d: todayKey(), w: +s.bodyWeight }];
   weighIns.sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));
-  return { units, plan: newPlan, notes: s.notes || {}, rest, beep: s.beep !== false, weighIns, planOffer, planVersion: 6 };
+  return { units, plan: newPlan, notes: s.notes || {}, rest, beep: s.beep !== false, weighIns, planOffer, planVersion: 7 };
 }
 
 /* ============================================================
@@ -1507,7 +1516,7 @@ function dayProgress(day) {
 
 function viewLibrary() {
   const chips = [["all", "All"], ...Object.entries(GROUPS)].map(([g, n]) => `<button class="chip-btn" data-group="${g}" aria-pressed="${ui.group === g}">${n}</button>`).join("");
-  const list = EX.filter(e => ui.group === "all" || e.group === ui.group).map(ex => `
+  const list = EX.filter(e => !e.retired && (ui.group === "all" || e.group === ui.group)).map(ex => `
     <button class="lib-card" data-open="${ex.id}">
       <div data-fig="${ex.id}"></div>
       <div class="name">${esc(ex.name)}</div>
@@ -1516,7 +1525,7 @@ function viewLibrary() {
     </button>`).join("");
   return `
     <section class="stack">
-      <div class="eyebrow">${EX.length} cable exercises</div>
+      <div class="eyebrow">${EX.filter(e => !e.retired).length} cable exercises</div>
       <h2>Exercise library</h2>
       <p class="muted" style="margin:0">For the REP Arcadia, both arms or legs at once. Yellow block: where to set the pulley. Dotted line: the path your hands take. Tap one for setup and logging.</p>
       <div class="daychips">${chips}</div>
@@ -1525,14 +1534,14 @@ function viewLibrary() {
     <section class="stack">
       <h3>Your attachments</h3>
       <div class="gear-grid">${Object.keys(GEAR).map(g => {
-        const used = EX.filter(e => e.gear.includes(g)).map(e => e.name);
+        const used = EX.filter(e => !e.retired && e.gear.includes(g)).map(e => e.name);
         return gearCard(g, used.length ? `<br>Used for: ${esc(used.join(", "))}` : "");
       }).join("")}</div>
     </section>`;
 }
 
 function viewPlan() {
-  const opts = Object.entries(GROUPS).map(([g, n]) => `<optgroup label="${n}">${EX.filter(e => e.group === g).map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join("")}</optgroup>`).join("");
+  const opts = Object.entries(GROUPS).map(([g, n]) => `<optgroup label="${n}">${EX.filter(e => !e.retired && e.group === g).map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join("")}</optgroup>`).join("");
   const days = DAYS.map(([id, nm]) => {
     const d = Store.state.plan[id] || { title: "", items: [] };
     const rows = d.items.map((item, i) => {
@@ -1568,7 +1577,7 @@ function viewPlan() {
       <div class="eyebrow">Weekly plan</div>
       <h2>Your week</h2>
       ${Store.state.planOffer ? `<div class="offer">
-        <div><b>A balanced plan is ready.</b> It evens out the week so every muscle gets 10–17 sets: front squats for the quads, calf raises, and more shoulder and trap work. Your current plan stays until you switch.</div>
+        <div><b>A balanced plan is ready.</b> It evens out the week so every muscle gets 10–17 sets: front squats for the quads, calf raises, and Lu raises for the shoulders and traps. Your current plan stays until you switch.</div>
         <div class="row"><button class="btn primary" data-act="plan-new">Use the balanced plan</button><button class="btn" data-act="plan-keep">Keep mine</button></div></div>` : ""}
       <p class="muted" style="margin:0">Set what you train each day and your rep range. When you hit the top of the range on every set, the app tells you to add weight.</p>
     </section>

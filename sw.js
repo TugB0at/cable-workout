@@ -3,7 +3,7 @@
 // (GitHub Pages caches for 10 minutes), so a new version shows up on the next
 // open. Icons and fonts are cache-first. Keep CACHE in step with the
 // app-version meta tag in index.html (the tests check this).
-const CACHE = "tension-2026.10.07-14";
+const CACHE = "tension-2026.10.07-15";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png"];
 
 self.addEventListener("install", e => {
