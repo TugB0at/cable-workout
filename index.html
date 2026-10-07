@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
 <meta name="theme-color" content="#11161b">
-<meta name="app-version" content="2026.10.07-16">
+<meta name="app-version" content="2026.10.07-17">
 <meta name="description" content="Cable machine workouts by day, with pulley-height diagrams, set logging and progress charts.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -408,9 +408,13 @@ button, a, input, select, label { touch-action: manipulation; }
      that slides in on scroll (Firefox keeps its toolbar at the bottom) can't cover the tabs. */
   html, body { height: 100%; }
   body { overflow: hidden; }
-  .shell { height: 100%; display: flex; flex-direction: column; }
+  /* --app-h is the height you can actually see, measured in JS (fitToScreen). Firefox on Android
+     can count space under its toolbar or the keyboard as part of 100%, which left the tabs and the
+     log bar half covered. The shell handles the safe areas itself, so the page gets no padding. */
+  :root { padding: 0; }
+  .shell { position: relative; height: var(--app-h, 100%); display: flex; flex-direction: column; }
   header.top { display: contents; }
-  .brand { order: 0; flex: none; margin-inline: -16px; padding: 10px 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .brand { order: 0; flex: none; margin-inline: -16px; padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px; background: var(--bg); border-bottom: 1px solid var(--line); }
   main#view { order: 1; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; align-content: start;
     margin-inline: -16px; padding: 18px 16px 96px; }
   nav.tabs { order: 2; flex: none; position: relative; z-index: 6; margin: 0 -16px; gap: 0; justify-content: space-around;
@@ -419,11 +423,11 @@ button, a, input, select, label { touch-action: manipulation; }
   nav.tabs button { flex: 1 1 auto; min-width: 0; min-height: 52px; padding: 12px 4px 14px; font-size: 15px; letter-spacing: .04em; border-bottom: 0; border-top: 3px solid transparent; }
   nav.tabs button[aria-selected="true"] { border-top-color: var(--accent); }
   .shell { padding-bottom: 0; }
-  .rest-bar.global { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); left: 10px; right: 10px; }
+  .rest-bar.global { position: absolute; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); left: 10px; right: 10px; }
   .toast { bottom: auto; top: calc(66px + env(safe-area-inset-top, 0px)); }
   .daychips.week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
   .daychips.week .chip-btn { padding: 8px 0; min-height: 40px; font-size: 13px; }
-  dialog.sheet { width: 100%; max-width: 100%; height: 100%; max-height: 100%; margin: 0; border-radius: 0; }
+  dialog.sheet { width: 100%; max-width: 100%; height: var(--app-h, 100%); max-height: var(--app-h, 100%); margin: 0; border-radius: 0; }
   .sheet-inner { padding: env(safe-area-inset-top, 0px) 16px calc(24px + env(safe-area-inset-bottom, 0px)); gap: 14px; }
   .log-dock { margin-bottom: calc(-24px - env(safe-area-inset-bottom, 0px)); }
   .date-row input[type="date"], .date-row .icon-btn { min-height: 36px; height: 36px; }
@@ -497,14 +501,27 @@ button, a, input, select, label { touch-action: manipulation; }
     </nav>
   </header>
   <main id="view"></main>
+  <div class="rest-bar global" id="restBar" hidden aria-live="polite"><div class="rest-fill"></div><span class="lbl">Rest</span><b class="rest-time">1:30</b><button data-rest="-15" aria-label="15 seconds less">−15</button><button data-rest="15" aria-label="15 seconds more">+15</button><button data-rest="skip">Skip</button></div>
 </div>
 
 <dialog class="sheet" id="sheet" aria-label="Exercise detail"><div class="sheet-inner" id="sheetBody"></div></dialog>
-<div class="rest-bar global" id="restBar" hidden aria-live="polite"><div class="rest-fill"></div><span class="lbl">Rest</span><b class="rest-time">1:30</b><button data-rest="-15" aria-label="15 seconds less">−15</button><button data-rest="15" aria-label="15 seconds more">+15</button><button data-rest="skip">Skip</button></div>
 <div class="toast" id="toast" hidden></div>
 
 <script>
 "use strict";
+/* Size the phone layout to the part of the screen you can actually see: the smallest of the
+   window, the page and the visible area (the visible area shrinks under a browser toolbar or the
+   keyboard). Skipped while pinch-zoomed, when the visible area is only part of the page. */
+function fitToScreen() {
+  const de = document.documentElement, vv = window.visualViewport;
+  let h = Math.min(window.innerHeight || Infinity, de.clientHeight || Infinity);
+  if (vv && Math.abs(vv.scale - 1) < 0.01) h = Math.min(h, vv.height);
+  if (h > 0 && isFinite(h)) de.style.setProperty("--app-h", Math.floor(h) + "px");
+}
+fitToScreen();
+addEventListener("resize", fitToScreen);
+addEventListener("orientationchange", fitToScreen);
+if (window.visualViewport) visualViewport.addEventListener("resize", fitToScreen);
 /* ============================================================
    Exercise library
    Pose angles are degrees from straight down; positive = forward
@@ -598,7 +615,7 @@ const EX = [
     b: { aL: [86, 82], aR: [86, 82] },
   },
   {
-    id: "lu-raise", name: "Cable Lu raise", group: "push",
+    id: "lu-raise", name: "Cable Lu raise", group: "push", retired: true,     // not offered anywhere; kept for old logs
     muscles: "Side delts, traps", level: "low", attach: "2 D-handles",
     position: "Centered between the towers, cables crossed in front",
     view: "front", machine: "both", grip: "crossed",
@@ -682,7 +699,7 @@ const EX = [
     b: { sL: [1, 1], sR: [1, 1] },
   },
   {
-    id: "shrug", name: "Cable shrug", group: "pull", retired: true,     // not offered anywhere; kept for old logs
+    id: "shrug", name: "Cable shrug", group: "pull",
     muscles: "Traps", level: "low", attach: "2 D-handles",
     position: "Centered between the towers, arms at your sides",
     view: "front", machine: "both", grip: "split",
@@ -923,10 +940,10 @@ const it = (id, sets, min, max) => ({ id, sets, min, max });
 // Balanced so every main muscle gets 10-17 sets a week (a set counts 1 for its main muscles,
 // 1/2 for the ones it also works) at 17-18 sets a session.
 const DEFAULT_PLAN = {
-  mon: { title: "Push", items: [it("chest-press", 4, 8, 12), it("fly-high", 3, 10, 15), it("shoulder-press", 3, 8, 12), it("lu-raise", 4, 10, 15), it("pushdown", 4, 10, 12)] },
-  tue: { title: "Pull", items: [it("lat-pulldown", 4, 8, 12), it("row", 3, 8, 12), it("face-pull", 3, 12, 15), it("straight-arm", 3, 12, 15), it("curl", 3, 10, 12)] },
+  mon: { title: "Push", items: [it("chest-press", 4, 8, 12), it("fly-high", 3, 10, 15), it("shoulder-press", 3, 8, 12), it("cross-lateral", 3, 12, 15), it("pushdown", 4, 10, 12)] },
+  tue: { title: "Pull", items: [it("lat-pulldown", 4, 8, 12), it("row", 3, 8, 12), it("face-pull", 3, 12, 15), it("shrug", 4, 10, 15), it("curl", 3, 10, 12)] },
   wed: { title: "Legs & core", items: [it("front-squat", 3, 8, 12), it("rdl", 4, 8, 12), it("pull-through", 3, 12, 15), it("calf-raise", 5, 12, 15), it("crunch", 3, 12, 15)] },
-  thu: { title: "Upper body", items: [it("fly-low", 3, 12, 15), it("lat-pulldown", 3, 10, 12), it("lu-raise", 3, 10, 15), it("rear-delt-fly", 3, 12, 15), it("overhead-ext", 3, 10, 12), it("hammer-curl", 2, 10, 12)] },
+  thu: { title: "Upper body", items: [it("fly-low", 3, 12, 15), it("lat-pulldown", 3, 10, 12), it("cross-lateral", 3, 12, 15), it("rear-delt-fly", 3, 12, 15), it("overhead-ext", 3, 10, 12), it("hammer-curl", 2, 10, 12)] },
   fri: { title: "Lower & core", items: [it("goblet-squat", 4, 10, 12), it("front-squat", 3, 8, 12), it("rdl", 3, 8, 12), it("calf-raise", 5, 12, 15), it("crunch", 3, 12, 15)] },
   sat: { title: "Rest", items: [] },
   sun: { title: "Rest", items: [] },
@@ -944,7 +961,7 @@ const PLAN_V4 = {
 };
 const planSig = plan => DAYS.map(([d]) => `${(plan[d] && plan[d].title) || ""}:${((plan[d] && plan[d].items) || []).map(x => `${x.id}/${x.sets}/${x.min}/${x.max}`).join(",")}`).join("|");
 // Exercises that were removed, and what a saved plan uses instead (null = drop it).
-const RETIRED = { "lateral-raise": "cross-lateral", kickback: "rdl", abduction: null, woodchop: null, shrug: null };
+const RETIRED = { "lateral-raise": "cross-lateral", kickback: "rdl", abduction: null, woodchop: null, "lu-raise": "cross-lateral" };
 const clone = o => JSON.parse(JSON.stringify(o));
 
 /* ============================================================
@@ -1215,7 +1232,7 @@ function mountDiagrams(root) {
 const LS_KEY = "cable-workout-log-v1";   // keep: renaming this would lose saved workouts
 const Store = {
   mode: "loading", db: null, uid: null,
-  state: { units: "lb", plan: clone(DEFAULT_PLAN), notes: {}, rest: 90, beep: true, weighIns: [], planOffer: false, planVersion: 7 },
+  state: { units: "lb", plan: clone(DEFAULT_PLAN), notes: {}, rest: 90, beep: true, weighIns: [], planOffer: false, planVersion: 8 },
   logs: {},
   timers: {}, chains: {},
   async init() {
@@ -1304,8 +1321,7 @@ window.addEventListener("storage", e => {
 });
 function normalizeState(s) {
   const plan = s.plan && typeof s.plan === "object" ? s.plan : clone(DEFAULT_PLAN);
-  const shrugAt = {};          // where a shrug sat before shrugs were dropped (v7 fills the spot)
-  for (const [d, day] of Object.entries(plan)) if (day && Array.isArray(day.items)) { const k = day.items.findIndex(x => x.id === "shrug"); if (k >= 0) shrugAt[d] = k; }
+  const luDays = Object.keys(plan).filter(d => plan[d] && Array.isArray(plan[d].items) && plan[d].items.some(x => x.id === "lu-raise"));
   for (const day of Object.values(plan)) {
     if (!day || !Array.isArray(day.items)) continue;
     const seen = new Set();
@@ -1323,32 +1339,31 @@ function normalizeState(s) {
   // v5: the balance pass. An untouched starter plan moves to the balanced one.
   let planOffer = s.planOffer === true, newPlan = plan;
   if ((s.planVersion || 1) < 5) {
-    // compare without exercises that have since been dropped (the shrug), as they're already gone from `plan`
+    // compare without exercises that have since been dropped, as they're already gone from `plan`
     const v4 = clone(PLAN_V4); for (const d of Object.values(v4)) d.items = d.items.filter(x => RETIRED[x.id] !== null);
     if (planSig(plan) === planSig(v4)) newPlan = clone(DEFAULT_PLAN);
     else if (planSig(plan) !== planSig(DEFAULT_PLAN)) planOffer = true;
   }
-  // v6: the Lu raise was added. It takes Thursday's lateral raise, or joins Thursday if that's a training day.
-  if ((s.planVersion || 1) < 6 && !Object.values(newPlan).some(d => d && Array.isArray(d.items) && d.items.some(x => x.id === "lu-raise"))) {
-    const thu = newPlan.thu, k = thu && Array.isArray(thu.items) ? thu.items.findIndex(x => x.id === "cross-lateral") : -1;
-    if (k >= 0) thu.items[k] = { id: "lu-raise", sets: thu.items[k].sets, min: 10, max: 15 };
-    else if (thu && Array.isArray(thu.items) && thu.items.length) thu.items.push({ id: "lu-raise", sets: 3, min: 10, max: 15 });
-  }
-  // v7: no shrugs. Where a plan had one, a straight-arm pulldown takes its place, and Monday's
-  // lateral raise becomes a Lu raise so the traps keep getting direct work.
-  if ((s.planVersion || 1) < 7 && newPlan === plan && Object.keys(shrugAt).length) {
-    for (const [d, k] of Object.entries(shrugAt)) {
-      const items = newPlan[d].items;
-      if (!items.some(x => x.id === "straight-arm")) items.splice(Math.min(k, items.length), 0, { id: "straight-arm", sets: 3, min: 12, max: 15 });
+  // v8: the Lu raise is out and shrugs are back (the Lu raise was v6–v7, and v7 had swapped the
+  // shrug for straight-arm pulldowns). Each Lu raise became a lateral raise above; give it back the
+  // lateral raise's 3 × 12–15 unless its sets were changed. Then put the shrug back on Tuesday.
+  if ((s.planVersion || 1) < 8 && newPlan === plan) {
+    for (const d of luDays) {
+      const x = newPlan[d].items.find(i => i.id === "cross-lateral");
+      if (x && x.min === 10 && x.max === 15 && (x.sets === 3 || (d === "mon" && x.sets === 4))) Object.assign(x, { sets: 3, min: 12, max: 15 });
     }
-    const mon = newPlan.mon, m = mon && Array.isArray(mon.items) ? mon.items.findIndex(x => x.id === "cross-lateral") : -1;
-    if (m >= 0 && !mon.items.some(x => x.id === "lu-raise")) mon.items[m] = { id: "lu-raise", sets: 4, min: 10, max: 15 };
+    const tue = newPlan.tue, has = id => Object.values(newPlan).some(day => day && Array.isArray(day.items) && day.items.some(x => x.id === id));
+    if (!has("shrug") && tue && Array.isArray(tue.items) && tue.items.length) {
+      const k = tue.items.findIndex(x => x.id === "straight-arm" && x.sets === 3 && x.min === 12 && x.max === 15);
+      if (k >= 0) tue.items[k] = { id: "shrug", sets: 4, min: 10, max: 15 };
+      else tue.items.push({ id: "shrug", sets: 4, min: 10, max: 15 });
+    }
   }
   let weighIns = Array.isArray(s.weighIns)
     ? s.weighIns.filter(x => x && /^\d{4}-\d{2}-\d{2}$/.test(x.d) && +x.w > 0 && +x.w < 1000).map(x => ({ d: x.d, w: +x.w })) : [];
   if (!weighIns.length && +s.bodyWeight > 0 && +s.bodyWeight < 1000) weighIns = [{ d: todayKey(), w: +s.bodyWeight }];
   weighIns.sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));
-  return { units, plan: newPlan, notes: s.notes || {}, rest, beep: s.beep !== false, weighIns, planOffer, planVersion: 7 };
+  return { units, plan: newPlan, notes: s.notes || {}, rest, beep: s.beep !== false, weighIns, planOffer, planVersion: 8 };
 }
 
 /* ============================================================
@@ -1577,7 +1592,7 @@ function viewPlan() {
       <div class="eyebrow">Weekly plan</div>
       <h2>Your week</h2>
       ${Store.state.planOffer ? `<div class="offer">
-        <div><b>A balanced plan is ready.</b> It evens out the week so every muscle gets 10–17 sets: front squats for the quads, calf raises, and Lu raises for the shoulders and traps. Your current plan stays until you switch.</div>
+        <div><b>A balanced plan is ready.</b> It evens out the week so every muscle gets 10–17 sets: front squats for the quads, calf raises, and shrugs for the traps. Your current plan stays until you switch.</div>
         <div class="row"><button class="btn primary" data-act="plan-new">Use the balanced plan</button><button class="btn" data-act="plan-keep">Keep mine</button></div></div>` : ""}
       <p class="muted" style="margin:0">Set what you train each day and your rep range. When you hit the top of the range on every set, the app tells you to add weight.</p>
     </section>

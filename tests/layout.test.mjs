@@ -667,12 +667,24 @@ async function trapsAndWeeklyTests(browser, url) {
     const ctx = await browser.newContext(mobile), page = await ctx.newPage();
     await page.goto(url);
     await tap(page, 'nav.tabs [data-tab="library"]', "the exercises tab");
-    const r = await page.evaluate(() => ({
-      inLibrary: !!document.querySelector('[data-open="shrug"]'), inAddList: !!document.querySelector('option[value="shrug"]'),
-      inPlan: Object.values(Store.state.plan).some(d => d.items.some(x => x.id === "shrug")), shown: document.querySelectorAll(".lib-card").length,
-      trapsMap: (() => { openSheet("lu-raise"); const n = document.querySelectorAll("dialog[open] .musc .mm .p").length; document.getElementById("sheet").close(); return n; })(),
-    }));
-    !r.inLibrary && !r.inAddList && !r.inPlan && r.shown === 22 && r.trapsMap >= 3 ? pass("no shrugs: not in the plan or the library; the Lu raise shades traps front and back") : fail(`shrugs gone: ${JSON.stringify(r)}`);
+    const lib = await page.evaluate(() => ({ shrug: !!document.querySelector('[data-open="shrug"]'), lu: !!document.querySelector('[data-open="lu-raise"]'), shown: document.querySelectorAll(".lib-card").length }));
+    await tap(page, 'nav.tabs [data-tab="plan"]', "the plan tab");
+    const add = await page.evaluate(() => ({ shrug: !!document.querySelector('option[value="shrug"]'), lu: !!document.querySelector('option[value="lu-raise"]') }));
+    const r = await page.evaluate(() => {
+      openSheet("shrug");
+      const main = [...document.querySelectorAll("dialog[open] .musc .mchip.p")].map(c => c.textContent).join();
+      const shaded = document.querySelectorAll("dialog[open] .musc .mm .p").length;
+      document.getElementById("sheet").close();
+      const lift = solve(poseAt(EXMAP.shrug, 0)).armL[0][1] - solve(poseAt(EXMAP.shrug, 1)).armL[0][1];
+      const ids = d => Store.state.plan[d].items.map(x => x.id);
+      return { main, shaded, lift, tue: ids("tue").join(), mon: ids("mon").includes("cross-lateral"), thu: ids("thu").includes("cross-lateral"),
+        lu: Object.values(Store.state.plan).some(d => d.items.some(x => x.id === "lu-raise")) };
+    });
+    lib.shrug && add.shrug && !lib.lu && !add.lu && lib.shown === 22 ? pass("shrugs are back in the exercise list and the Plan's add list; the Lu raise is gone from both (22 exercises)")
+      : fail(`library: ${JSON.stringify(lib)}, add list: ${JSON.stringify(add)}`);
+    r.main === "Traps" && r.shaded >= 3 && r.lift > 4 && r.tue === "lat-pulldown,row,face-pull,shrug,curl" && r.mon && r.thu && !r.lu
+      ? pass("cable shrug: traps (shaded front and back), shoulders rise in the diagram; Tuesday has shrugs, Monday and Thursday lateral raises")
+      : fail(`shrug plan: ${JSON.stringify(r)}`);
     await tap(page, 'nav.tabs [data-tab="today"]', "the today tab");
     // Log 3 sets of chest press this week: chest 3 (main), front delts and triceps 1½ each (also worked).
     await tap(page, '[data-day="mon"]', "Monday"); await tap(page, '[data-open="chest-press"]', "chest press");
@@ -680,77 +692,138 @@ async function trapsAndWeeklyTests(browser, url) {
     await page.evaluate(() => document.getElementById("sheet").close()); await page.waitForTimeout(300);
     await tap(page, 'nav.tabs [data-tab="progress"]', "the progress tab");
     const rows = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll(".ms-row")].map(r => [r.querySelector(".ms-name").textContent, r.querySelector(".ms-val").textContent])));
-    rows.Chest === "3/10" && rows["Front delts"] === "1½/11½" && rows.Triceps === "1½/12" && rows.Traps === "0/10" && rows["Side delts"] === "0/11½" && rows.Glutes === "0/17" && rows.Calves === "0/10"
-      ? pass("sets per muscle this week: Chest 3/10, Front delts 1½/11½, Triceps 1½/12; traps planned 10 without shrugs") : fail(`sets per muscle: ${JSON.stringify(rows)}`);
+    rows.Chest === "3/10" && rows["Front delts"] === "1½/11" && rows.Triceps === "1½/10½" && rows.Traps === "0/10" && rows["Side delts"] === "0/10½" && rows.Glutes === "0/17" && rows.Calves === "0/10"
+      ? pass("sets per muscle this week: Chest 3/10, Front delts 1½/11, Triceps 1½/10½; traps planned 10 with shrugs") : fail(`sets per muscle: ${JSON.stringify(rows)}`);
     await tap(page, '[data-week="-1"]', "Last week");
     const last = await page.evaluate(() => document.querySelector(".ms-row .ms-val").textContent);
     last === "0/10" ? pass("Last week shows last week's sets") : fail(`last week chest: ${last}`);
     await ctx.close();
   }
-  // The Lu raise: both arms with crossed cables, side delts and traps, on Thursday; saved plans swap it in.
-  {
-    const ctx = await browser.newContext(mobile), page = await ctx.newPage();
-    await page.goto(url);
-    const r = await page.evaluate(() => {
-      openSheet("lu-raise");
-      const main = [...document.querySelectorAll("dialog[open] .musc .mchip.p")].map(c => c.textContent).join();
-      const top = solve(poseAt(EXMAP["lu-raise"], 1)), handsUp = top.armL[2][1] < top.head[1] && top.armR[2][1] < top.head[1];
-      const lists = Object.fromEntries([...document.querySelectorAll("dialog[open] .cols > div")].map(d => [d.querySelector("h3").textContent, [...d.querySelectorAll("li")].map(li => li.textContent)]));
-      const pulley = document.querySelector("dialog[open] .pulley-fact .v").textContent;
-      document.getElementById("sheet").close();
-      return { main, handsUp, pulley, setup: lists.Setup[0], middle: lists["Common mistakes"].some(m => m.startsWith("Pulleys in the middle")), thu: Store.state.plan.thu.items.map(x => x.id) };
-    });
-    r.main === "Side delts,Traps" && r.handsUp && r.thu.includes("lu-raise") && !r.thu.includes("cross-lateral")
-      ? pass("Lu raise: side delts and traps, hands finish above the head, on Thursday") : fail(`Lu raise: ${JSON.stringify(r)}`);
-    // Low pulleys keep the cables working against you overhead; from the middle they stop resisting past shoulder height.
-    r.pulley === "Low" && r.setup.includes("at the bottom, not the middle") && r.middle
-      ? pass("Lu raise: pulleys at the bottom, and the screen warns against the middle") : fail(`Lu raise pulley: ${JSON.stringify(r)}`);
-    await ctx.close();
-  }
-  {
+  // Saved plans from earlier versions. `plan` is built in the page, `version` is what it was saved as.
+  const fromSaved = async (version, build) => {
     const ctx = await browser.newContext(mobile), page0 = await ctx.newPage();
     await page0.goto(url);
-    const old = await page0.evaluate(() => {                                  // the plan as the balance pass shipped it (v5)
-      const p = clone(DEFAULT_PLAN), lat = { id: "cross-lateral", sets: 3, min: 12, max: 15 };
-      p.mon.items = p.mon.items.map(x => (x.id === "lu-raise" ? lat : x));
-      p.thu.items = p.thu.items.map(x => (x.id === "lu-raise" ? { ...lat } : x));
-      p.tue.items = p.tue.items.map(x => (x.id === "straight-arm" ? { id: "shrug", sets: 4, min: 10, max: 15 } : x));
-      return { state: { units: "lb", planVersion: 5, plan: p }, logs: {} };
-    });
+    const old = await page0.evaluate(([v, src]) => ({ state: { units: "lb", planVersion: v, plan: (0, eval)(src)() }, logs: {} }), [version, `(${build})`]);
     await page0.close();
     await ctx.addInitScript(([key, value]) => { localStorage.setItem(key, value); }, [LS_KEY, JSON.stringify(old)]);
     const page = await ctx.newPage(); await page.goto(url);
-    const st = await page.evaluate(() => ({ thu: Store.state.plan.thu.items.map(x => x.id).join(), same: planSig(Store.state.plan) === planSig(DEFAULT_PLAN) }));
-    st.same && st.thu.includes("lu-raise") && !st.thu.includes("cross-lateral") ? pass("the balance-pass plan updates to today's plan: Lu raises Monday and Thursday, no shrug") : fail(`Lu raise swap: ${JSON.stringify(st)}`);
+    const st = await page.evaluate(() => ({
+      same: planSig(Store.state.plan) === planSig(DEFAULT_PLAN), lu: Object.values(Store.state.plan).some(d => d.items.some(x => x.id === "lu-raise")),
+      days: Object.fromEntries(["mon", "tue", "thu"].map(d => [d, Store.state.plan[d].items.map(x => `${x.id}:${x.sets}x${x.min}-${x.max}`).join(",")])),
+    }));
     await ctx.close();
-  }
-  // The plan saved by the previous version (shrug on Tuesday, lateral raise on Monday): the shrug's
-  // spot goes to straight-arm pulldowns and Monday's lateral raise becomes a Lu raise.
+    return st;
+  };
+  // The plan from earlier today (v7): Lu raises Monday (4 × 10–15) and Thursday, straight-arm pulldowns where the shrug was.
   {
-    const ctx = await browser.newContext(mobile), page0 = await ctx.newPage();
-    await page0.goto(url);
-    const old = await page0.evaluate(() => {
+    const st = await fromSaved(7, () => {
+      const p = clone(DEFAULT_PLAN), swap = (d, from, to) => { p[d].items = p[d].items.map(x => (x.id === from ? to : x)); };
+      swap("mon", "cross-lateral", { id: "lu-raise", sets: 4, min: 10, max: 15 });
+      swap("thu", "cross-lateral", { id: "lu-raise", sets: 3, min: 10, max: 15 });
+      swap("tue", "shrug", { id: "straight-arm", sets: 3, min: 12, max: 15 });
+      return p;
+    });
+    st.same && !st.lu ? pass("your saved plan: Lu raises go back to lateral raises (3 × 12–15) and the shrug is back on Tuesday (4 × 10–15)")
+      : fail(`plan from v7: ${JSON.stringify(st)}`);
+  }
+  // A plan saved with only Thursday's Lu raise (v6) still had its shrug; it ends up the same.
+  {
+    const st = await fromSaved(6, () => {
       const p = clone(DEFAULT_PLAN);
-      p.mon.items = p.mon.items.map(x => (x.id === "lu-raise" ? { id: "cross-lateral", sets: 3, min: 12, max: 15 } : x));
-      p.tue.items = p.tue.items.map(x => (x.id === "straight-arm" ? { id: "shrug", sets: 4, min: 10, max: 15 } : x));
-      return { state: { units: "lb", planVersion: 6, plan: p }, logs: {} };
+      p.thu.items = p.thu.items.map(x => (x.id === "cross-lateral" ? { id: "lu-raise", sets: 3, min: 10, max: 15 } : x));
+      return p;
     });
-    await page0.close();
-    await ctx.addInitScript(([key, value]) => { localStorage.setItem(key, value); }, [LS_KEY, JSON.stringify(old)]);
-    const page = await ctx.newPage(); await page.goto(url);
-    const st = await page.evaluate(() => ({ mon: Store.state.plan.mon.items.map(x => `${x.id}:${x.sets}`).join(), tue: Store.state.plan.tue.items.map(x => x.id).join(), same: planSig(Store.state.plan) === planSig(DEFAULT_PLAN) }));
-    st.same && st.tue === "lat-pulldown,row,face-pull,straight-arm,curl" && st.mon.includes("lu-raise:4")
-      ? pass("saved plan: shrug replaced by straight-arm pulldowns, Monday's lateral raise is now a Lu raise") : fail(`no-shrug update: ${JSON.stringify(st)}`);
-    await ctx.close();
+    st.same && !st.lu ? pass("a plan saved with Thursday's Lu raise: lateral raise again, shrug kept") : fail(`plan from v6: ${JSON.stringify(st)}`);
   }
-  // A plan saved long before (no shrug) doesn't get one.
+  // A Lu raise you changed keeps your sets and reps (as a lateral raise), and a Tuesday without the
+  // straight-arm swap gets the shrug added at the end.
+  {
+    const st = await fromSaved(7, () => {
+      const p = clone(DEFAULT_PLAN);
+      p.mon.items = p.mon.items.map(x => (x.id === "cross-lateral" ? { id: "lu-raise", sets: 5, min: 8, max: 10 } : x));
+      p.tue.items = p.tue.items.filter(x => x.id !== "shrug");
+      return p;
+    });
+    st.days.mon.includes("cross-lateral:5x8-10") && st.days.tue === "lat-pulldown:4x8-12,row:3x8-12,face-pull:3x12-15,curl:3x10-12,shrug:4x10-15" && !st.lu
+      ? pass("an edited Lu raise keeps your 5 × 8–10 as a lateral raise; Tuesday gets the shrug back") : fail(`edited plan from v7: ${JSON.stringify(st)}`);
+  }
+  // A plan saved before shrugs existed gets one on Tuesday.
   {
     const ctx = await browser.newContext(mobile);
     const old = { state: { units: "lb", planVersion: 3, plan: { tue: { title: "Pull", items: [{ id: "row", sets: 3, min: 8, max: 12 }] }, thu: { title: "Rest", items: [] } } }, logs: {} };
     await ctx.addInitScript(([key, value]) => { if (!localStorage.getItem(key)) localStorage.setItem(key, value); }, [LS_KEY, JSON.stringify(old)]);
     const page = await ctx.newPage(); await page.goto(url);
     const tue = await page.evaluate(() => Store.state.plan.tue.items.map(x => x.id).join());
-    tue === "row" ? pass("older saved plans don't get a shrug") : fail(`older saved plan Tuesday: ${tue}`);
+    tue === "row,shrug" ? pass("older saved plans get the shrug added to Tuesday") : fail(`older saved plan Tuesday: ${tue}`);
+    await ctx.close();
+  }
+}
+
+// Firefox on Android can keep its toolbar (or the keyboard) over the bottom of the page while the
+// page still counts that space as its own, which left the tabs and the log bar half covered.
+// Stand in for it: the page stays 780px tall but reports a visible area (visualViewport) that's
+// `cover` px shorter, like a toolbar sitting over the bottom. Nothing should end up underneath.
+async function coveredScreenTests(browser, url) {
+  console.log("\nBottom bars with a toolbar or the keyboard over the screen");
+  for (const width of [320, 412]) {
+    const ctx = await browser.newContext({ viewport: { width, height: 780 }, isMobile: true, hasTouch: true, reducedMotion: "reduce" });
+    await ctx.addInitScript(([key, value]) => { if (!localStorage.getItem(key)) localStorage.setItem(key, value); }, [LS_KEY, JSON.stringify(seed())]);
+    await ctx.addInitScript(() => {
+      window.__cover = 56;
+      const vv = new EventTarget(), props = { height: () => innerHeight - window.__cover, width: () => innerWidth, scale: () => 1, offsetTop: () => 0, offsetLeft: () => 0, pageTop: () => 0, pageLeft: () => 0 };
+      for (const [k, get] of Object.entries(props)) Object.defineProperty(vv, k, { get });
+      Object.defineProperty(window, "visualViewport", { get: () => vv, configurable: true });
+    });
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on("pageerror", e => errors.push(e.message));
+    await page.goto(url);
+    const box = sel => page.evaluate(q => { const r = document.querySelector(q).getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), h: Math.round(r.height) }; }, sel);
+    const seen = 780 - 56;
+
+    const tabs = await box("nav.tabs");
+    tabs.bottom <= seen && tabs.h >= 52 ? pass(`${width}px: tabs sit fully above a toolbar covering the bottom 56px (bottom edge ${tabs.bottom} of ${seen})`)
+      : fail(`${width}px: tabs under the toolbar: ${JSON.stringify(tabs)}, visible to ${seen}`);
+
+    await tap(page, '[data-day="mon"]', "Monday");
+    await tap(page, '[data-open="chest-press"]', "chest press");
+    const sheet = await box("dialog[open]"), dock = await box("dialog[open] .log-dock"), btn = await box('#logForm button[type="submit"]');
+    sheet.bottom <= seen && dock.bottom <= seen && btn.bottom <= seen - 8
+      ? pass(`${width}px: the log bar and Log set sit fully above the toolbar (Log set ends at ${btn.bottom})`)
+      : fail(`${width}px: log bar under the toolbar: sheet ${JSON.stringify(sheet)}, dock ${JSON.stringify(dock)}, button ${JSON.stringify(btn)}, visible to ${seen}`);
+
+    // The rest timer floats above the tabs once the exercise is closed.
+    await page.evaluate(() => { unlockAudio(); startRest(90); document.getElementById("sheet").close(); });
+    await page.waitForTimeout(150);
+    const bar = await box("#restBar"), tabs2 = await box("nav.tabs");
+    bar.h > 0 && bar.bottom <= tabs2.top && bar.top > 100 ? pass(`${width}px: the rest timer floats just above the tabs`)
+      : fail(`${width}px: rest timer at ${JSON.stringify(bar)}, tabs at ${JSON.stringify(tabs2)}`);
+    await page.evaluate(() => stopRest(false));
+
+    // The toolbar slides away: the tabs follow it down to the real bottom.
+    await page.evaluate(() => { window.__cover = 0; visualViewport.dispatchEvent(new Event("resize")); });
+    const tabs3 = await box("nav.tabs");
+    tabs3.bottom === 780 ? pass(`${width}px: when the toolbar slides away, the tabs move down to the bottom edge`) : fail(`${width}px: tabs after the toolbar hides: ${JSON.stringify(tabs3)}`);
+
+    // The keyboard opens while typing a weight. The page is set to shrink above it
+    // (interactive-widget=resizes-content), and the log bar has to stay fully visible.
+    const meta = await page.evaluate(() => document.querySelector('meta[name="viewport"]').content);
+    await tap(page, '[data-open="chest-press"]', "chest press");
+    await page.focus("#wIn");
+    await page.setViewportSize({ width, height: 780 - 300 });
+    await page.waitForTimeout(150);
+    const k = await page.evaluate(() => {
+      const r = q => document.querySelector(q).getBoundingClientRect();
+      return { sheet: Math.round(r("dialog[open]").bottom), dock: Math.round(r("dialog[open] .log-dock").bottom), input: Math.round(r("#wIn").bottom), button: Math.round(r('#logForm button[type="submit"]').bottom), focused: document.activeElement.id };
+    });
+    /interactive-widget=resizes-content/.test(meta) && !/viewport-fit=cover/.test(meta) && k.sheet <= 480 && k.dock <= 480 && k.button <= 480 && k.input <= 480 && k.focused === "wIn"
+      ? pass(`${width}px: with the keyboard up, the log bar sits right above it (ends at ${k.dock} of 480)`)
+      : fail(`${width}px: keyboard covers the log bar: ${JSON.stringify(k)}, viewport meta "${meta}"`);
+    await page.setViewportSize({ width, height: 780 });
+    await page.waitForTimeout(150);
+    const back = await box("dialog[open]");
+    back.bottom === 780 ? pass(`${width}px: the exercise view grows back when the keyboard closes`) : fail(`${width}px: exercise view after the keyboard closes: ${JSON.stringify(back)}`);
+    if (errors.length) fail(`${width}px: page errors: ${errors.join(" | ")}`);
     await ctx.close();
   }
 }
@@ -824,6 +897,7 @@ try {
   await reviewFixTests(browser, url);
   await trapsAndWeeklyTests(browser, url);
   await balanceTests(browser, url);
+  await coveredScreenTests(browser, url);
   if (!process.argv.includes("--layout-only")) await updateTests(browser);
 } finally {
   server.close();
