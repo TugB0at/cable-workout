@@ -10,6 +10,10 @@ A single-page workout app for training on a REP Arcadia functional trainer (upgr
 - **Plan**: an editable weekly plan with sets and rep ranges per exercise.
 - **Progress**: workouts per week, a 16-week activity grid, a strength chart per exercise (heaviest set and estimated 1-rep max), and recent history.
 - **Progression hints**: once you hit the top of your rep range on every set, the app tells you to add weight.
+- **Sets and exercises turn green** as you finish them, with a progress bar for the day's workout.
+- **Muscles worked**: a front-and-back body map and muscle list for each workout and exercise.
+- **Missed days**: pick any past date on Today (or tap Edit on a past workout in Progress) to log or fix it.
+- **Personal records and workout summary**: heavier-than-ever sets get a PR badge, and Finish workout shows time, sets, pounds lifted, new records and how it compares with last time.
 
 ## Install it on Android
 

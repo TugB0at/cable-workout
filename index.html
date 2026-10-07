@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#11161b">
-<meta name="app-version" content="2026.10.07-5">
+<meta name="app-version" content="2026.10.07-6">
 <meta name="description" content="Cable machine workouts by day, with pulley-height diagrams, set logging and progress charts.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -152,6 +152,30 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin
 .fig .bar-end { fill: var(--fig); stroke: var(--cable); stroke-width: 2.5; }
 .fig .strand { stroke: var(--cable); stroke-width: 3; stroke-linecap: round; }
 .fig .ball { fill: var(--cable); }
+
+/* Logging a past day, records, workout summary */
+.date-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.date-row input[type="date"] { min-height: 40px; min-width: 0; padding: 6px 10px; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; font-weight: 600; }
+.date-row .icon-btn { width: 40px; height: 40px; font-size: 22px; border: 1px solid var(--line); }
+.date-row .icon-btn:disabled { opacity: .35; cursor: default; }
+.past-note { font-size: 13px; font-weight: 600; padding: 8px 12px; border-radius: 8px; color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); }
+.btn.finish { width: 100%; min-height: 50px; font-size: 16px; }
+.pr { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 6px; background: var(--accent); color: var(--accent-ink); font: 700 11px/1.4 var(--font-body); letter-spacing: .06em; vertical-align: 1px; }
+.sum-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.records, .sum-list { display: grid; gap: 6px; }
+.record { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent); }
+.record .nm, .sum-ex .nm { font-weight: 600; }
+.record .s, .sum-ex .s { font-size: 14px; color: var(--muted); }
+.record b { color: var(--ink); font-family: var(--font-mono); }
+.sum-ex { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.sum-ex .ck { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; font-size: 15px; font-weight: 800; line-height: 1; }
+.sum-ex.ok { background: color-mix(in srgb, var(--good) 14%, var(--surface)); border-color: color-mix(in srgb, var(--good) 60%, transparent); }
+.sum-ex.ok .ck { background: var(--good); border-color: var(--good); color: var(--bg); }
+.sum-ex.skip { opacity: .65; }
+.hist-day .hd { display: flex; align-items: center; gap: 8px; }
+.hist-day .hd .d { margin-right: auto; }
 
 /* Muscle map + muscle chips */
 .musc { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 14px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; }
@@ -348,7 +372,7 @@ button, a, input, select, label { touch-action: manipulation; }
   .cols { grid-template-columns: minmax(0, 1fr); }
   .gear-pick { flex-direction: column; }
   .gear-pick .gear-card { flex: none; }
-  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stats, .sum-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   h2 { font-size: 26px; }
 }
 /* Hover outlines only with a mouse; on phones a tapped row would otherwise stay outlined. */
@@ -1113,7 +1137,34 @@ function planItemFor(exId) {
   return { id: exId, sets: 3, min: 8, max: 12 };
 }
 function setsOn(date, exId) { return Store.logs[date]?.sets?.[exId] || []; }
-function lastSession(exId, before = todayKey()) {
+// The day sets go to: today, unless a past day was picked on the Today tab.
+const logKey = () => ui.logDate || todayKey();
+const isLogToday = () => logKey() === todayKey();
+const shiftKey = (k, n) => { const d = parseKey(k); d.setDate(d.getDate() + n); return dateKey(d); };
+function setLogDate(k) {
+  ui.logDate = !k || k >= todayKey() ? null : k;
+  ui.day = dayIdOf(parseKey(logKey()));      // follow that weekday's plan; the day buttons can change it
+}
+// Personal records: best weight and best estimated 1-rep max on days before `date`.
+function bestBefore(exId, date) {
+  let w = -1, e = -1, any = false;
+  for (const d of Object.keys(Store.logs)) if (d < date) for (const st of setsOn(d, exId)) { any = true; w = Math.max(w, st.w); e = Math.max(e, e1rm(st.w, st.r)); }
+  return any ? { w, e } : null;
+}
+function recordsOn(date) {
+  const records = [], first = [];
+  for (const [id, arr] of Object.entries(Store.logs[date]?.sets || {})) {
+    if (!arr.length || !EXMAP[id]) continue;
+    const prev = bestBefore(id, date);
+    if (!prev) { first.push(id); continue; }
+    const topW = Math.max(...arr.map(x => x.w)), topE = Math.max(...arr.map(x => e1rm(x.w, x.r)));
+    if (topW > prev.w) records.push({ id, kind: "Heaviest set", now: topW, was: prev.w });
+    else if (topE > prev.e + 0.5) records.push({ id, kind: "Best estimated 1-rep max", now: Math.round(topE), was: Math.round(prev.e) });
+  }
+  return { records, first };
+}
+const volumeOf = arr => arr.reduce((a, x) => a + x.w * x.r, 0);
+function lastSession(exId, before = logKey()) {
   const dates = Object.keys(Store.logs).filter(d => d < before && setsOn(d, exId).length).sort();
   const d = dates[dates.length - 1];
   return d ? { date: d, sets: setsOn(d, exId) } : null;
@@ -1157,20 +1208,23 @@ function render() {
 }
 
 function viewToday() {
-  const tId = dayIdOf(new Date());
+  const tId = dayIdOf(new Date()), date = logKey(), past = !isLogToday();
   const day = Store.state.plan[ui.day] || { title: "Rest", items: [] };
   const dayName = DAYS.find(d => d[0] === ui.day)[1];
-  const isToday = ui.day === tId;
+  const otherPlan = ui.day !== dayIdOf(parseKey(date));
   const chips = DAYS.map(([id, nm]) => `<button class="chip-btn ${id === tId ? "today" : ""}" data-day="${id}" aria-pressed="${id === ui.day}">${nm.slice(0, 3)}</button>`).join("");
-  const items = day.items.map((item, i) => {
-    const ex = EXMAP[item.id]; if (!ex) return "";
-    const done = setsOn(todayKey(), ex.id).length, complete = done >= item.sets;
-    const last = lastSession(ex.id);
+  const planned = day.items.filter(x => EXMAP[x.id]);
+  const logged = Object.keys(Store.logs[date]?.sets || {}).filter(id => EXMAP[id] && setsOn(date, id).length);
+  const extra = logged.filter(id => !planned.some(x => x.id === id));
+  const row = (item, i) => {
+    const ex = EXMAP[item.id];
+    const sets = setsOn(date, ex.id), done = sets.length, complete = done >= item.sets;
+    const last = lastSession(ex.id, date);
     const note = Store.state.notes[ex.id];
     return `<button class="ex-row ${complete ? "complete" : ""}" data-open="${ex.id}" data-ctx="today">
       <div data-fig="${ex.id}"></div>
       <div class="info">
-        <div class="title"><span class="order">${complete ? "✓" : String(i + 1).padStart(2, "0")}</span><span class="name">${esc(ex.name)}</span></div>
+        <div class="title"><span class="order">${complete ? "✓" : i < 0 ? "+" : String(i + 1).padStart(2, "0")}</span><span class="name">${esc(ex.name)}</span></div>
         <div class="mline">${mline(ex)}</div>
         <div class="row">
           <span class="pill pulley">Pulley: ${LEVELS[ex.level].name}${note ? " · " + esc(note) : ""}</span>
@@ -1178,28 +1232,37 @@ function viewToday() {
           ${complete ? `<span class="pill done">✓ Done · ${done} sets</span>` : done ? `<span class="pill">${done}/${item.sets} sets done</span>` : ""}
         </div>
         <div class="meta">${esc(ex.attach)} · ${done
-          ? `Today: <span class="num">${fmtW(Math.max(...setsOn(todayKey(), ex.id).map(s => s.w)))} ${unit()} × ${setsText(setsOn(todayKey(), ex.id))}</span>`
-          : last ? `Last (${fmtDate(last.date, { month: "short", day: "numeric" })}): <span class="num">${fmtW(Math.max(...last.sets.map(s => s.w)))} ${unit()} × ${setsText(last.sets)}</span>` : "Not logged yet"}</div>
+          ? `${past ? "That day" : "Today"}: <span class="num">${fmtW(Math.max(...sets.map(x => x.w)))} ${unit()} × ${setsText(sets)}</span>`
+          : last ? `Last (${fmtDate(last.date, { month: "short", day: "numeric" })}): <span class="num">${fmtW(Math.max(...last.sets.map(x => x.w)))} ${unit()} × ${setsText(last.sets)}</span>` : "Not logged yet"}</div>
       </div>
     </button>`;
-  }).join("");
+  };
   return `
     <section class="stack">
-      <div class="eyebrow">${isToday ? "Today · " + fmtDate(todayKey(), { weekday: "long", month: "long", day: "numeric" }) : dayName + " plan · sets you log go to today"}</div>
+      <div class="eyebrow">${past ? "Past workout" : "Today"} · ${fmtDate(date, { weekday: "long", month: "long", day: "numeric" })}${otherPlan ? ` · ${dayName}'s plan` : ""}</div>
       <h2>${esc(day.title || "Workout")}</h2>
-      <div class="daychips week" aria-label="Pick a day">${chips}</div>
-      ${day.items.length ? (m => muscleBlock(m.p, m.s, "Muscles worked"))(musclesFor(day.items.map(x => EXMAP[x.id]).filter(Boolean))) : ""}
+      <div class="date-row">
+        <button class="icon-btn" data-shift="-1" aria-label="Previous day">‹</button>
+        <input type="date" id="logDate" value="${date}" max="${todayKey()}" aria-label="Day to log">
+        <button class="icon-btn" data-shift="1" aria-label="Next day" ${past ? "" : "disabled"}>›</button>
+        ${past ? `<button class="btn small" data-act="today">Back to today</button>` : ""}
+      </div>
+      ${past ? `<div class="past-note">Sets you log now go to ${fmtDate(date, { weekday: "long", month: "short", day: "numeric" })}.</div>` : ""}
+      <div class="daychips week" aria-label="Pick a plan day">${chips}</div>
+      ${planned.length ? (m => muscleBlock(m.p, m.s, "Muscles worked"))(musclesFor(planned.map(x => EXMAP[x.id]))) : ""}
       ${dayProgress(day)}
     </section>
-    ${day.items.length ? `<section class="ex-list">${items}</section>` :
+    ${planned.length ? `<section class="ex-list">${planned.map((it, i) => row(it, i)).join("")}</section>` : extra.length ? "" :
       `<section class="empty rest"><h3>Rest day</h3><p>Nothing planned for ${dayName}. Walk, stretch, sleep. To train anyway, pick another day above, or add exercises in the Plan tab.</p></section>`}
+    ${extra.length ? `<section class="stack"><h3>Also logged ${past ? "that day" : "today"}</h3><div class="ex-list">${extra.map(id => row(planItemFor(id), -1)).join("")}</div></section>` : ""}
+    ${logged.length ? `<button class="btn primary finish" data-act="finish">Finish workout · see summary</button>` : ""}
   `;
 }
 
 function dayProgress(day) {
   const items = day.items.filter(x => EXMAP[x.id]);
   if (!items.length) return "";
-  const doneN = items.filter(x => setsOn(todayKey(), x.id).length >= x.sets).length;
+  const doneN = items.filter(x => setsOn(logKey(), x.id).length >= x.sets).length;
   const all = doneN === items.length;
   return `<div class="day-progress ${all ? "all" : ""}"><div class="bar"><i style="width:${(doneN / items.length) * 100}%"></i></div>
     <div class="txt">${all ? "✓ Workout complete. Nice work." : `${doneN} of ${items.length} exercises done`}</div></div>`;
@@ -1294,7 +1357,7 @@ function viewProgress() {
     cells += `<i class="${k > tk ? "fut" : dates.includes(k) ? "on" : ""} ${k === tk ? "now" : ""}" title="${k}"></i>`; }
   const logged = EX.filter(e => dates.some(d => setsOn(d, e.id).length));
   if (!ui.chartEx || !logged.find(e => e.id === ui.chartEx)) ui.chartEx = logged[0]?.id || null;
-  const hist = dates.slice(-12).reverse().map(d => `<div class="hist-day"><div class="d">${fmtDate(d)}</div>${Object.entries(Store.logs[d].sets).map(([id, arr]) =>
+  const hist = dates.slice(-12).reverse().map(d => `<div class="hist-day"><div class="hd"><span class="d">${fmtDate(d)}</span>${(n => n ? `<span class="pr">${n} PR</span>` : "")(recordsOn(d).records.length)}<button class="btn small" data-edit="${d}" aria-label="Edit ${fmtDate(d)}">Edit</button></div>${Object.entries(Store.logs[d].sets).map(([id, arr]) =>
     `<div class="e"><span class="n">${esc(EXMAP[id]?.name || id)}</span><span class="num muted">${arr.map(s => `${fmtW(s.w)}×${s.r}`).join("  ")}</span></div>`).join("")}</div>`).join("");
   return `
     <section class="stack"><div class="eyebrow">Progress</div><h2>How it's going</h2></section>
@@ -1361,10 +1424,60 @@ function drawChart() {
 let sheetEx = null, sheetDiagram = null;
 function openSheet(id) {
   sheetEx = EXMAP[id]; if (!sheetEx) return;
+  ui.sheetMode = "exercise";
   const dlg = document.getElementById("sheet");
   if (!dlg.open) { dlg.showModal(); hist.push({ tab: ui.tab, sheet: id }); }
   renderSheet(); dlg.scrollTop = 0;
   keepAwake(true);
+}
+function openSummary() {
+  ui.sheetMode = "summary";
+  const dlg = document.getElementById("sheet");
+  if (!dlg.open) { dlg.showModal(); hist.push({ tab: ui.tab, sheet: "summary" }); }
+  renderSheet(); dlg.scrollTop = 0;
+}
+function renderSummary() {
+  const date = logKey(), log = Store.logs[date], sets = (log && log.sets) || {};
+  const ids = Object.keys(sets).filter(id => sets[id].length && EXMAP[id]);
+  const all = ids.flatMap(id => sets[id]);
+  const ts = all.map(x => x.t).filter(t => t && dateKey(new Date(t)) === date);
+  const mins = ts.length > 1 ? Math.max(1, Math.round((Math.max(...ts) - Math.min(...ts)) / 60000)) : null;
+  const plan = Store.state.plan[ui.day] || { title: "", items: [] };
+  const planned = plan.items.filter(x => EXMAP[x.id]);
+  const doneN = planned.filter(x => setsOn(date, x.id).length >= x.sets).length;
+  const { records, first } = recordsOn(date);
+  let nowV = 0, thenV = 0;
+  for (const id of ids) { const last = lastSession(id, date); if (last) { nowV += volumeOf(sets[id]); thenV += volumeOf(last.sets); } }
+  const diff = nowV - thenV, pct = thenV ? Math.round((diff / thenV) * 100) : 0;
+  const title = (log && log.title) || plan.title || "Workout";
+  document.getElementById("sheetBody").innerHTML = `
+    <div class="sheet-head">
+      <h2>Workout summary</h2>
+      <button class="icon-btn" data-act="close" aria-label="Close" style="font-size:22px">✕</button>
+    </div>
+    <div class="muted"><b style="color:var(--ink)">${esc(title)}</b> · ${fmtDate(date, { weekday: "long", month: "long", day: "numeric" })}</div>
+    ${ids.length ? `
+    <div class="sum-stats">
+      <div class="stat"><div class="v">${mins ? mins + " min" : "–"}</div><div class="k">time</div></div>
+      <div class="stat"><div class="v">${all.length}</div><div class="k">sets</div></div>
+      <div class="stat"><div class="v">${Math.round(volumeOf(all)).toLocaleString()}</div><div class="k">${unit()} lifted</div></div>
+      <div class="stat"><div class="v">${planned.length ? `${doneN}/${planned.length}` : ids.length}</div><div class="k">exercises ${planned.length ? "finished" : "done"}</div></div>
+    </div>
+    <section class="stack" style="gap:8px">
+      <h3>New records</h3>
+      ${records.length ? `<div class="records">${records.map(r => `<div class="record"><span class="pr">PR</span><div><div class="nm">${esc(EXMAP[r.id].name)}</div><div class="s">${r.kind}: <b>${fmtW(r.now)} ${unit()}</b>, up from ${fmtW(r.was)}</div></div></div>`).join("")}</div>`
+        : `<p class="muted" style="margin:0">No new records this time.</p>`}
+      ${first.length ? `<p class="muted" style="margin:0;font-size:14px">First time logged: ${first.map(id => esc(EXMAP[id].name)).join(", ")}. Your next session has something to beat.</p>` : ""}
+    </section>
+    ${thenV ? `<div class="hint">Compared with last time on the same exercises: <b>${Math.round(Math.abs(diff)).toLocaleString()} ${unit()} ${diff >= 0 ? "more" : "less"}</b> lifted (${diff >= 0 ? "+" : "−"}${Math.abs(pct)}%).</div>` : ""}
+    <section class="stack" style="gap:8px">
+      <h3>Exercises</h3>
+      <div class="sum-list">${ids.map(id => {
+        const it = planned.find(x => x.id === id), ok = !it || sets[id].length >= it.sets;
+        return `<div class="sum-ex ${ok ? "ok" : ""}"><span class="ck" aria-hidden="true">${ok ? "✓" : ""}</span><div><div class="nm">${esc(EXMAP[id].name)}</div><div class="s num">${sets[id].map(x => `${fmtW(x.w)}×${x.r}`).join("  ")}${it && !ok ? ` · ${sets[id].length} of ${it.sets} sets` : ""}</div></div></div>`;
+      }).join("")}${planned.filter(x => !setsOn(date, x.id).length).map(x => `<div class="sum-ex skip"><span class="ck" aria-hidden="true"></span><div><div class="nm">${esc(EXMAP[x.id].name)}</div><div class="s">Skipped</div></div></div>`).join("")}</div>
+    </section>` : `<div class="empty">No sets logged for this day yet.</div>`}
+    <button type="button" class="btn primary" data-act="close" style="min-height:50px">Done</button>`;
 }
 function workoutNav(id) {
   const list = ui.sheetList || [], i = list.indexOf(id);
@@ -1372,11 +1485,14 @@ function workoutNav(id) {
   const prev = list[i - 1], next = list[i + 1];
   return `<div class="sheet-nav">${prev ? `<button type="button" class="btn" data-goto="${prev}">← ${esc(EXMAP[prev].name)}</button>` : ""}${next
     ? `<button type="button" class="btn primary" data-goto="${next}">Next: ${esc(EXMAP[next].name)} →</button>`
-    : `<button type="button" class="btn" data-act="close">Finish workout</button>`}</div>`;
+    : `<button type="button" class="btn primary" data-act="finish">Finish workout · see summary</button>`}</div>`;
 }
 function renderSheet() {
+  if (ui.sheetMode === "summary") { renderSummary(); paintRest(); return; }
   const ex = sheetEx, item = planItemFor(ex.id), lvl = LEVELS[ex.level];
-  const today = setsOn(todayKey(), ex.id), last = lastSession(ex.id), sug = suggestion(ex.id);
+  const today = setsOn(logKey(), ex.id), last = lastSession(ex.id), sug = suggestion(ex.id);
+  const prevBest = bestBefore(ex.id, logKey()), dayTop = today.length ? Math.max(...today.map(x => x.w)) : -1;
+  const prIndex = prevBest && dayTop > prevBest.w ? today.findIndex(x => x.w === dayTop) : -1;
   const prefillW = today.length ? today[today.length - 1].w : (sug.w ?? "");
   const prefillR = today.length ? today[today.length - 1].r : item.max;
   const body = document.getElementById("sheetBody");
@@ -1399,7 +1515,8 @@ function renderSheet() {
     </div>
     ${muscleBlock(ex.p, ex.s, "Muscles worked", FOCUS[ex.id] || "")}
     <section class="logger ${today.length >= item.sets ? "complete" : ""}" aria-label="Log sets">
-      <div class="row" style="justify-content:space-between"><h3>Log today</h3>${today.length >= item.sets
+      ${isLogToday() ? "" : `<div class="past-note">Logging for ${fmtDate(logKey(), { weekday: "long", month: "short", day: "numeric" })}</div>`}
+      <div class="row" style="justify-content:space-between"><h3>Log ${isLogToday() ? "today" : fmtDate(logKey())}</h3>${today.length >= item.sets
         ? `<span class="pill done">✓ Done</span>` : `<span class="pill">${today.length}/${item.sets} sets · ${item.min}–${item.max} reps</span>`}</div>
       <div class="muted" style="font-size:13px">Log the number on the weight-stack pin. The Arcadia is 2:1, so the cable feels like about half of that.</div>
       <div class="hint">${sug.text}${last ? ` <span class="muted">Last time: <span class="num">${last.sets.map(s => `${fmtW(s.w)}×${s.r}`).join(", ")}</span></span>` : ""}</div>
@@ -1411,7 +1528,7 @@ function renderSheet() {
       <div class="rest-bar" data-restbar hidden><div class="rest-fill"></div><span class="lbl">Rest</span><b class="rest-time">1:30</b><button type="button" data-rest="-15" aria-label="15 seconds less">−15</button><button type="button" data-rest="15" aria-label="15 seconds more">+15</button><button type="button" data-rest="skip">Skip</button></div>
       <div class="slots" aria-label="Sets">${Array.from({ length: Math.max(item.sets, today.length) }, (_, i) => {
         const st = today[i];
-        if (st) return `<div class="slot done"><span class="ck" aria-hidden="true">✓</span><span class="lbl">Set ${i + 1}</span><span class="val">${fmtW(st.w)} ${unit()} × ${st.r}</span><button data-delset="${i}" aria-label="Delete set ${i + 1}">✕</button></div>`;
+        if (st) return `<div class="slot done"><span class="ck" aria-hidden="true">✓</span><span class="lbl">Set ${i + 1}</span><span class="val">${i === prIndex ? `<span class="pr" title="Personal record">PR</span> ` : ""}${fmtW(st.w)} ${unit()} × ${st.r}</span><button data-delset="${i}" aria-label="Delete set ${i + 1}">✕</button></div>`;
         return `<div class="slot ${i === today.length ? "next" : ""}"><span class="ck" aria-hidden="true"></span><span class="lbl">Set ${i + 1}</span><span class="val todo">${i === today.length ? "Up next · " : ""}${item.min}–${item.max} reps</span><span></span></div>`;
       }).join("")}</div>
       ${workoutNav(ex.id)}
@@ -1545,6 +1662,12 @@ view.addEventListener("click", e => {
   if (ds.restdef) { Store.state.rest = +ds.restdef; Store.saveState(); return render(); }
   if (ds.beep) { Store.state.beep = ds.beep === "on"; Store.saveState(); if (Store.state.beep) { unlockAudio(); beep(); } return render(); }
   if (ds.day) { ui.day = ds.day; return render(); }
+  if (ds.shift) { setLogDate(shiftKey(logKey(), +ds.shift)); return render(); }
+  if (ds.edit) {
+    setLogDate(ds.edit);
+    if (ui.tab !== "today" && history.state && history.state.tab === ui.tab) { history.back(); return; }   // popstate shows Today
+    return showTab("today");
+  }
   if (ds.group) { ui.group = ds.group; return render(); }
   const plan = Store.state.plan;
   if (ds.add) {
@@ -1563,6 +1686,8 @@ view.addEventListener("click", e => {
     case "cancel": ui.confirm = null; return render();
     case "export": return exportData();
     case "import-yes": return applyImport();
+    case "today": setLogDate(null); return render();
+    case "finish": return openSummary();
   }
 });
 view.addEventListener("change", e => {
@@ -1575,6 +1700,7 @@ view.addEventListener("change", e => {
   }
   if (t.dataset.title) { Store.state.plan[t.dataset.title].title = t.value.trim().slice(0, 40); Store.saveState(); return; }
   if (t.id === "chartEx") { ui.chartEx = t.value; return drawChart(); }
+  if (t.id === "logDate") { setLogDate(t.value || null); return render(); }
   if (t.id === "importFile" && t.files[0]) {
     const r = new FileReader();
     r.onload = () => {
@@ -1605,7 +1731,7 @@ function applyImport() {
   const o = ui.confirm.import.data; ui.confirm = null;
   const old = Object.keys(Store.logs);
   Store.state = normalizeState(o.state); Store.logs = {};
-  for (const [d, log] of Object.entries(o.logs)) if (/^\d{4}-\d{2}-\d{2}$/.test(d) && log && log.sets) Store.logs[d] = { date: d, sets: log.sets };
+  for (const [d, log] of Object.entries(o.logs)) if (/^\d{4}-\d{2}-\d{2}$/.test(d) && log && log.sets) Store.logs[d] = { date: d, sets: log.sets, ...(log.title ? { title: log.title } : {}) };
   Store.saveState();
   for (const d of new Set([...old, ...Object.keys(Store.logs)])) Store.saveLog(d);
   toast("Backup imported"); render();
@@ -1616,7 +1742,8 @@ sheet.addEventListener("click", e => {
   if (e.target === sheet) return sheet.close();
   const t = e.target.closest("button"); if (!t) return;
   if (t.dataset.act === "close") return sheet.close();
-  if (t.dataset.goto) { sheetEx = EXMAP[t.dataset.goto]; renderSheet(); sheet.scrollTop = 0; return; }
+  if (t.dataset.act === "finish") return openSummary();
+  if (t.dataset.goto) { sheetEx = EXMAP[t.dataset.goto]; ui.sheetMode = "exercise"; renderSheet(); sheet.scrollTop = 0; return; }
   if (t.dataset.rest) return restAction(t.dataset.rest);
   if (t.dataset.act === "play") {
     sheetDiagram.manual = !sheetDiagram.manual; t.textContent = sheetDiagram.manual ? "Play" : "Pause";
@@ -1633,7 +1760,7 @@ sheet.addEventListener("click", e => {
     inp.value = fmtW(nv); return;
   }
   if (t.dataset.delset !== undefined) {
-    const d = todayKey(); setsOn(d, sheetEx.id).splice(+t.dataset.delset, 1);
+    const d = logKey(); setsOn(d, sheetEx.id).splice(+t.dataset.delset, 1);
     if (!setsOn(d, sheetEx.id).length && Store.logs[d]) delete Store.logs[d].sets[sheetEx.id];
     Store.saveLog(d); renderSheet(); render(); return;
   }
@@ -1656,12 +1783,16 @@ sheet.addEventListener("submit", e => {
   e.preventDefault();
   const w = parseFloat(document.getElementById("wIn").value), r = parseInt(document.getElementById("rIn").value, 10);
   if (!(w >= 0) || !(r >= 1)) { toast("Enter a weight and at least 1 rep."); return; }
-  const d = todayKey();
+  const d = logKey();
+  const prev = bestBefore(sheetEx.id, d), before = setsOn(d, sheetEx.id);
+  const topSoFar = before.length ? Math.max(...before.map(x => x.w)) : -1;
   Store.logs[d] = Store.logs[d] || { date: d, sets: {} };
-  (Store.logs[d].sets[sheetEx.id] = Store.logs[d].sets[sheetEx.id] || []).push({ w, r });
+  if (!Store.logs[d].title) Store.logs[d].title = (Store.state.plan[ui.day] || {}).title || "";
+  (Store.logs[d].sets[sheetEx.id] = Store.logs[d].sets[sheetEx.id] || []).push({ w, r, t: Date.now() });
   Store.saveLog(d);
   const n = setsOn(d, sheetEx.id).length, target = planItemFor(sheetEx.id).sets;
-  toast(n === target ? `✓ ${sheetEx.name}: all ${target} sets done` : n > target ? `Extra set ${n} logged` : `Set ${n} of ${target} done`);
+  if (prev && w > prev.w && w > topSoFar) toast(`New record: ${fmtW(w)} ${unit()} on ${sheetEx.name}, up from ${fmtW(prev.w)}`);
+  else toast(n === target ? `✓ ${sheetEx.name}: all ${target} sets done` : n > target ? `Extra set ${n} logged` : `Set ${n} of ${target} done`);
   renderSheet(); render();
   unlockAudio();
   startRest(Store.state.rest || 90);

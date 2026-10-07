@@ -205,6 +205,11 @@ async function layoutTests(browser, url) {
     await page.evaluate(() => document.getElementById("sheet").scrollTop = 0);
     await shot("exercise-top");
 
+    await page.evaluate(() => openSummary());
+    clean = (await checkScreen(page, "workout summary")) && clean;
+    await shot("summary");
+    await page.evaluate(() => { ui.sheetMode = "exercise"; });
+
     // Every exercise, with the rest timer still running.
     const ids = await page.evaluate(() => EX.map(e => e.id));
     const wide = [];
@@ -227,6 +232,10 @@ async function layoutTests(browser, url) {
     if (!row.complete || !row.green || row.progress !== "1 of 5 exercises done") { fail(`Today after finishing an exercise: ${JSON.stringify(row)}`); clean = false; }
     clean = (await checkScreen(page, "today tab with a finished exercise")) && clean;
     await shot("today-done");
+    await page.evaluate(() => { setLogDate(shiftKey(todayKey(), -2)); render(); });
+    clean = (await checkScreen(page, "today tab logging a past day")) && clean;
+    await shot("today-past");
+    await page.evaluate(() => { setLogDate(null); render(); });
 
     if (errors.length) fail(`script errors: ${errors.join(" | ")}`);
     if (clean && !nav.scrolls && nav.minH >= 44 && taps >= 44 && !errors.length && green.done === 3) pass(`all screens and ${ids.length} exercise views fit; finished sets and exercises turn green`);
@@ -289,6 +298,61 @@ async function backButtonTests(browser, url) {
   }
 }
 
+// Logging a missed day, personal records and the workout summary.
+async function pastDayTests(browser, url) {
+  console.log("\nMissed days, records and summary");
+  const ctx = await browser.newContext({ viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, reducedMotion: "reduce" });
+  await ctx.addInitScript(([key, value]) => { if (!localStorage.getItem(key)) localStorage.setItem(key, value); }, [LS_KEY, JSON.stringify(seed())]);
+  const page = await ctx.newPage();
+  const back = async () => { await page.evaluate(() => history.back()); await page.waitForTimeout(300); };
+  try {
+    await page.goto(url);
+    const day = await page.evaluate(() => shiftKey(todayKey(), -2));
+    await tap(page, '[data-shift="-1"]', "previous day"); await tap(page, '[data-shift="-1"]', "previous day");
+    const note = await page.evaluate(() => document.querySelector(".past-note")?.textContent || "");
+    note ? pass(`picking a past day shows: "${note.trim()}"`) : fail("no notice when logging a past day");
+    await tap(page, '[data-day="mon"]', "Monday's plan");
+    await tap(page, '[data-open="chest-press"]', "chest press");
+    const toasts = [];
+    for (const r of ["10", "9", "8"]) {
+      await page.fill("#wIn", "100"); await page.fill("#rIn", r);
+      await tap(page, '#logForm button[type="submit"]', "Log set");
+      toasts.push(await page.evaluate(() => document.getElementById("toast").textContent));
+    }
+    const res = await page.evaluate(d => ({ n: setsOn(d, "chest-press").length, today: setsOn(todayKey(), "chest-press").length, pr: document.querySelectorAll("dialog[open] .slot .pr").length }), day);
+    res.n === 3 && res.today === 0 ? pass("3 sets saved to the past day, none to today") : fail(`past-day sets: ${JSON.stringify(res)}`);
+    toasts[0].startsWith("New record: 100 lb") && res.pr === 1 ? pass(`record noticed while logging: "${toasts[0]}"`) : fail(`record while logging: toast "${toasts[0]}", PR badges ${res.pr}`);
+    await tap(page, 'dialog[open] [data-act="close"]', "close"); await page.waitForTimeout(300);
+
+    await tap(page, '[data-act="finish"]', "Finish workout");
+    const sum = await page.evaluate(() => ({
+      open: !!document.querySelector("dialog[open] .sum-stats"),
+      records: [...document.querySelectorAll("dialog[open] .record")].map(r => r.textContent.replace(/\s+/g, " ").trim()),
+      sets: document.querySelectorAll("dialog[open] .sum-stats .stat .v")[1]?.textContent,
+    }));
+    const rec = sum.records.find(r => r.includes("Standing cable chest press") && r.includes("Heaviest set: 100 lb, up from 81"));
+    sum.open && rec && sum.sets === "3" ? pass(`summary: 3 sets, "${rec}"`) : fail(`summary: ${JSON.stringify(sum)}`);
+    await back();
+    (await page.evaluate(() => !document.querySelector("dialog[open]"))) ? pass("back closes the summary") : fail("summary still open after back");
+
+    await tap(page, '[data-act="today"]', "Back to today");
+    const now = await page.evaluate(() => ({ note: !!document.querySelector(".past-note"), key: logKey() === todayKey() }));
+    !now.note && now.key ? pass("Back to today logs to today again") : fail(`after Back to today: ${JSON.stringify(now)}`);
+
+    await tap(page, 'nav.tabs [data-tab="progress"]', "the progress tab");
+    const histRow = await page.evaluate(d => { const b = document.querySelector(`[data-edit="${d}"]`); return b ? b.closest(".hist-day").textContent.replace(/\s+/g, " ") : ""; }, day);
+    histRow.includes("1 PR") ? pass("Progress marks that day with 1 PR") : fail(`history row: ${histRow}`);
+    await tap(page, `[data-edit="${day}"]`, "Edit");
+    await page.waitForTimeout(300);
+    const edit = await page.evaluate(d => ({ tab: ui.tab, key: logKey() === d, note: !!document.querySelector(".past-note") }), day);
+    edit.tab === "today" && edit.key && edit.note ? pass("Edit reopens that day on Today") : fail(`Edit: ${JSON.stringify(edit)}`);
+  } catch (e) {
+    fail("missed-day checks stopped: " + e.message.split("\n")[0]);
+  } finally {
+    await ctx.close();
+  }
+}
+
 async function updateTests(browser) {
   console.log("\nInstalled app: updates and offline");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tension-site-"));
@@ -340,6 +404,7 @@ const { server, url } = await serve(ROOT);
 try {
   await layoutTests(browser, url);
   await backButtonTests(browser, url);
+  await pastDayTests(browser, url);
   if (!process.argv.includes("--layout-only")) await updateTests(browser);
 } finally {
   server.close();
