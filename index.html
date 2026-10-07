@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#11161b">
-<meta name="app-version" content="2026.10.07-4">
+<meta name="app-version" content="2026.10.07-5">
 <meta name="description" content="Cable machine workouts by day, with pulley-height diagrams, set logging and progress charts.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -152,6 +152,26 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin
 .fig .bar-end { fill: var(--fig); stroke: var(--cable); stroke-width: 2.5; }
 .fig .strand { stroke: var(--cable); stroke-width: 3; stroke-linecap: round; }
 .fig .ball { fill: var(--cable); }
+
+/* Muscle map + muscle chips */
+.musc { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 14px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; }
+.musc .mm { width: 116px; height: auto; display: block; }
+.musc-info { display: grid; gap: 6px; min-width: 0; }
+.mchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mchip { display: inline-flex; padding: 3px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; line-height: 1.35; }
+.mchip.p { background: var(--cable); color: var(--bg); }
+.mchip.s { border: 1px solid color-mix(in srgb, var(--cable) 55%, transparent); color: var(--ink); padding: 2px 9px; }
+.musc .focus { font-size: 13px; color: var(--muted); }
+.mkey { display: flex; gap: 12px; font-size: 12px; color: var(--muted); }
+.mkey i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.mkey i.p { background: var(--cable); }
+.mkey i.s { background: color-mix(in srgb, var(--cable) 42%, var(--surface-2)); }
+.mm .n { fill: var(--surface-2); stroke: var(--line); stroke-width: .8; }
+.mm .base { fill: color-mix(in srgb, var(--surface-2) 70%, var(--bg)); stroke: var(--line); stroke-width: .8; }
+.mm .p { fill: var(--cable); stroke: color-mix(in srgb, var(--cable) 70%, #000); stroke-width: .6; }
+.mm .s { fill: color-mix(in srgb, var(--cable) 42%, var(--surface-2)); stroke: var(--line); stroke-width: .6; }
+.mline { font-size: 13px; color: var(--muted); }
+.mline b { color: var(--ink); font-weight: 600; }
 
 /* Attachment drawings */
 .gear-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
@@ -572,11 +592,11 @@ const EX = [
   },
   {
     id: "goblet-squat", name: "Cable goblet squat", group: "legs",
-    muscles: "Quads, glutes", level: "low", attach: "Tricep rope",
+    muscles: "Quads, glutes", level: "low", attach: "One D-handle, both hands",
     position: "Facing the tower, feet shoulder-width",
     view: "side", machine: "left", grip: "hands",
-    setup: ["Set the pulley at the bottom.", "Hold the rope ends at your chest.", "Step back one step, feet shoulder-width, toes slightly out."],
-    steps: ["Sit down and back until your thighs are about parallel.", "Keep your chest up and the rope at your chest.", "Drive through your whole foot to stand."],
+    setup: ["Set the pulley at the bottom.", "Clip on one D-handle and hold it at your chest with both hands cupped under it, like a goblet.", "Step back one step, feet shoulder-width, toes slightly out."],
+    steps: ["Sit down and back until your thighs are about parallel.", "Keep your chest up and the handle tight to your chest.", "Drive through your whole foot to stand."],
     cues: ["Knees track over toes", "The cable lets you sit back a little more"],
     mistakes: ["Heels lifting", "Rounding the lower back at the bottom"],
     a: { f: -1, x: 130, anchor: "L", t: 6, aL: [25, 165], aR: [25, 165], lL: [2, 0], lR: [2, 0] },
@@ -642,10 +662,85 @@ const GEAR_FOR = {
   "chest-press": ["dhandle"], "fly-high": ["dhandle"], "fly-low": ["dhandle"], "shoulder-press": ["dhandle"],
   "cross-lateral": ["dhandle"], "front-raise": ["straight-bar"], pushdown: ["straight-bar", "rope"], "overhead-ext": ["rope"],
   "lat-pulldown": ["lat-bar", "neutral-lat"], row: ["triangle"], "face-pull": ["rope"], "rear-delt-fly": ["dhandle"],
-  "straight-arm": ["straight-bar", "rope"], curl: ["curl-bar"], "hammer-curl": ["rope"], "goblet-squat": ["rope"],
+  "straight-arm": ["straight-bar", "rope"], curl: ["curl-bar"], "hammer-curl": ["rope"], "goblet-squat": ["dhandle"],
   rdl: ["straight-bar"], "pull-through": ["rope"], crunch: ["rope"],
 };
 for (const e of EX) e.gear = GEAR_FOR[e.id] || ["dhandle"];
+/* Muscles: main (p) and also worked (s) for each exercise. */
+const MUSCLES = {
+  chest: "Chest", "front-delts": "Front delts", "side-delts": "Side delts", "rear-delts": "Rear delts",
+  triceps: "Triceps", biceps: "Biceps", forearms: "Forearms", lats: "Lats", "upper-back": "Upper back",
+  "lower-back": "Lower back", abs: "Abs", obliques: "Obliques", glutes: "Glutes", quads: "Quads", hamstrings: "Hamstrings",
+};
+const MUSCLE_FOR = {
+  "chest-press": [["chest"], ["front-delts", "triceps"]], "fly-high": [["chest"], ["front-delts"]], "fly-low": [["chest"], ["front-delts"]],
+  "shoulder-press": [["front-delts", "side-delts"], ["triceps", "upper-back"]], "cross-lateral": [["side-delts"], ["front-delts", "upper-back"]],
+  "front-raise": [["front-delts"], ["side-delts", "chest"]], pushdown: [["triceps"], []], "overhead-ext": [["triceps"], []],
+  "lat-pulldown": [["lats"], ["biceps", "upper-back", "rear-delts"]], row: [["upper-back", "lats"], ["biceps", "rear-delts"]],
+  "face-pull": [["rear-delts", "upper-back"], ["side-delts"]], "rear-delt-fly": [["rear-delts"], ["upper-back"]],
+  "straight-arm": [["lats"], ["triceps", "abs"]], curl: [["biceps"], ["forearms"]], "hammer-curl": [["biceps", "forearms"], []],
+  "goblet-squat": [["quads", "glutes"], ["abs"]], rdl: [["hamstrings", "glutes"], ["lower-back", "forearms"]],
+  "pull-through": [["glutes", "hamstrings"], ["lower-back"]], crunch: [["abs"], ["obliques"]],
+};
+const FOCUS = {
+  "fly-high": "Focus: lower chest.", "fly-low": "Focus: upper chest.",
+  "overhead-ext": "Focus: the long head of the triceps, which gets the most stretch overhead.",
+  "hammer-curl": "Also hits the brachialis, which sits under the biceps and thickens the arm.",
+  "face-pull": "Also strengthens the rotator cuff, which keeps your shoulders healthy.",
+  "straight-arm": "Works the lats without the biceps taking over.",
+};
+for (const e of EX) [e.p, e.s] = MUSCLE_FOR[e.id] || [[], []];
+
+// Front + back muscle map. primary/secondary are Sets of muscle ids.
+function muscleMap(primary, secondary, label) {
+  const lv = (...ids) => ids.some(i => primary.has(i)) ? "p" : ids.some(i => secondary.has(i)) ? "s" : "n";
+  const both = shapes => shapes + `<g transform="translate(100 0) scale(-1 1)">${shapes}</g>`;
+  const head = `<ellipse class="base" cx="50" cy="14" rx="8.5" ry="10"/><path class="base" d="M45 21 H55 L56 31 H44 Z"/>`;
+  const front = head + both(`
+      <path class="${lv("front-delts", "side-delts")}" d="M37 32 Q26 31 22.5 41 Q21.5 47 24 51 Q30 45 36 43 Z"/>
+      <path class="${lv("chest")}" d="M49.2 33.5 L38.5 33 Q33 37 34 46 Q36.5 54.5 49.2 53.5 Z"/>
+      <path class="${lv("biceps")}" d="M24.5 53 Q30 49 33.5 50 Q34 61 30.5 71 Q25.5 72 22.5 68 Q21.5 60 24.5 53 Z"/>
+      <path class="${lv("forearms")}" d="M22.5 72.5 Q27.5 74 30 74 Q29.5 88 25 100 Q21 101 18.5 99 Q18 85 22.5 72.5 Z"/>
+      <ellipse class="base" cx="21" cy="105" rx="3.6" ry="4.6"/>
+      <path class="${lv("obliques")}" d="M42.2 57 Q36.5 63 37 77 Q37.5 90 42.2 96 Z"/>
+      <path class="${lv("quads")}" d="M36.5 108 Q31.5 128 36 151 Q41.5 154 47.5 151 Q50.5 128 49.4 109 Z"/>
+      <path class="base" d="M37.5 156 Q42 154 47 156 Q48 174 46 188 H39 Q36.5 172 37.5 156 Z"/>
+      <ellipse class="base" cx="42.5" cy="192" rx="6" ry="3"/>`)
+    + [56.5, 69, 81.5].map(y => `<rect class="${lv("abs")}" x="43.4" y="${y}" width="6" height="11" rx="2.2"/><rect class="${lv("abs")}" x="50.6" y="${y}" width="6" height="11" rx="2.2"/>`).join("")
+    + `<path class="base" d="M38 97 H62 L64.5 107 H35.5 Z"/>`;
+  const back = head
+    + `<path class="${lv("upper-back")}" d="M50 24.5 L37.5 33 Q40.5 41 43.5 47 L50 59 L56.5 47 Q59.5 41 62.5 33 Z"/>`
+    + both(`
+      <path class="${lv("rear-delts", "side-delts")}" d="M37 32 Q26 31 22.5 41 Q21.5 47 24 51 Q30 45 36 43 Z"/>
+      <path class="${lv("triceps")}" d="M24.5 53 Q30 49 33.5 50 Q34 61 30.5 71 Q25.5 72 22.5 68 Q21.5 60 24.5 53 Z"/>
+      <path class="${lv("forearms")}" d="M22.5 72.5 Q27.5 74 30 74 Q29.5 88 25 100 Q21 101 18.5 99 Q18 85 22.5 72.5 Z"/>
+      <ellipse class="base" cx="21" cy="105" rx="3.6" ry="4.6"/>
+      <path class="${lv("lats")}" d="M36.5 43 Q31.5 55 35 71 Q38.5 84 46 91 L48 63 Q44.5 55 42 48.5 Z"/>
+      <path class="${lv("glutes")}" d="M49.4 100 Q40 99 36.5 105 Q34 113 38 119 Q44 122 49.4 118 Z"/>
+      <path class="${lv("hamstrings")}" d="M36.5 122 Q33 137 37 153 Q42 156 47.5 153 Q49.5 137 49.2 122 Q43 125 36.5 122 Z"/>
+      <path class="base" d="M37.5 157 Q42 155 47 157 Q49 168 46.5 188 H39 Q35.5 170 37.5 157 Z"/>
+      <ellipse class="base" cx="42.5" cy="192" rx="6" ry="3"/>`)
+    + `<path class="${lv("lower-back")}" d="M45.5 64 H54.5 Q56 80 56 96 H44 Q44 80 45.5 64 Z"/>`;
+  return `<svg class="mm" viewBox="0 0 206 198" role="img" aria-label="${label}"><g>${front}</g><g transform="translate(106 0)">${back}</g></svg>`;
+}
+
+const mchips = (p, s) => p.map(m => `<span class="mchip p">${MUSCLES[m]}</span>`).join("") + s.map(m => `<span class="mchip s">${MUSCLES[m]}</span>`).join("");
+const mline = ex => [...ex.p.map(m => `<b>${MUSCLES[m]}</b>`), ...ex.s.map(m => MUSCLES[m])].join(" · ");
+// What a list of exercises works, busiest muscles first.
+function musclesFor(exs) {
+  const pc = {}, sc = {};
+  for (const e of exs) { e.p.forEach(m => (pc[m] = (pc[m] || 0) + 1)); e.s.forEach(m => (sc[m] = (sc[m] || 0) + 1)); }
+  const p = Object.keys(pc).sort((a, b) => pc[b] - pc[a] || (sc[b] || 0) - (sc[a] || 0));
+  const s = Object.keys(sc).filter(m => !pc[m]).sort((a, b) => sc[b] - sc[a]);
+  return { p, s };
+}
+function muscleBlock(p, s, title, focus = "") {
+  const names = [...p, ...s].map(m => MUSCLES[m]).join(", ");
+  return `<div class="musc">${muscleMap(new Set(p), new Set(s), `${title}: ${names}`)}
+    <div class="musc-info"><div class="eyebrow">${title}</div><div class="mchips">${mchips(p, s)}</div>
+    ${focus ? `<div class="focus">${focus}</div>` : ""}
+    <div class="mkey"><span><i class="p"></i>Main</span>${s.length ? `<span><i class="s"></i>Also worked</span>` : ""}</div></div></div>`;
+}
 const gearSvg = (id, label) => `<svg viewBox="0 0 240 100" role="img" aria-label="${label || GEAR[id].name}">${GEAR[id].svg}</svg>`;
 const gearCard = (id, extra = "") => `<div class="gear-card">${gearSvg(id)}<div class="nm">${GEAR[id].name}</div><div class="s">${GEAR[id].from}${extra}</div></div>`;
 const EXMAP = Object.fromEntries(EX.map(e => [e.id, e]));
@@ -1076,6 +1171,7 @@ function viewToday() {
       <div data-fig="${ex.id}"></div>
       <div class="info">
         <div class="title"><span class="order">${complete ? "✓" : String(i + 1).padStart(2, "0")}</span><span class="name">${esc(ex.name)}</span></div>
+        <div class="mline">${mline(ex)}</div>
         <div class="row">
           <span class="pill pulley">Pulley: ${LEVELS[ex.level].name}${note ? " · " + esc(note) : ""}</span>
           <span class="pill">${item.sets} × ${item.min}–${item.max}</span>
@@ -1092,6 +1188,7 @@ function viewToday() {
       <div class="eyebrow">${isToday ? "Today · " + fmtDate(todayKey(), { weekday: "long", month: "long", day: "numeric" }) : dayName + " plan · sets you log go to today"}</div>
       <h2>${esc(day.title || "Workout")}</h2>
       <div class="daychips week" aria-label="Pick a day">${chips}</div>
+      ${day.items.length ? (m => muscleBlock(m.p, m.s, "Muscles worked"))(musclesFor(day.items.map(x => EXMAP[x.id]).filter(Boolean))) : ""}
       ${dayProgress(day)}
     </section>
     ${day.items.length ? `<section class="ex-list">${items}</section>` :
@@ -1115,7 +1212,7 @@ function viewLibrary() {
       <div data-fig="${ex.id}"></div>
       <div class="name">${esc(ex.name)}</div>
       <div class="row"><span class="pill pulley">Pulley: ${LEVELS[ex.level].name}</span><span class="pill">${GROUPS[ex.group]}</span></div>
-      <div class="meta">${esc(ex.muscles)}</div>
+      <div class="mline">${mline(ex)}</div>
     </button>`).join("");
   return `
     <section class="stack">
@@ -1161,6 +1258,7 @@ function viewPlan() {
     }).join("");
     return `<div class="card plan-day">
       <div class="day-head"><h3 style="min-width:96px">${nm}</h3><input id="title-${id}" value="${esc(d.title)}" data-title="${id}" aria-label="${nm} workout name" placeholder="Rest"></div>
+      ${d.items.length ? (m => `<div class="mchips">${mchips(m.p, m.s)}</div>`)(musclesFor(d.items.map(x => EXMAP[x.id]).filter(Boolean))) : ""}
       ${rows || `<div class="muted" style="font-size:14px">Rest day. Add an exercise to train.</div>`}
       <div class="add-row"><select id="add-${id}" aria-label="Exercise to add to ${nm}">${opts}</select><button class="btn small" data-add="${id}">Add</button></div>
     </div>`;
@@ -1284,7 +1382,7 @@ function renderSheet() {
   const body = document.getElementById("sheetBody");
   body.innerHTML = `
     <div class="sheet-head">
-      <div class="stack" style="gap:4px"><div class="eyebrow">${GROUPS[ex.group]} · ${esc(ex.muscles)}</div><h2>${esc(ex.name)}</h2></div>
+      <div class="stack" style="gap:4px"><div class="eyebrow">${GROUPS[ex.group]} · ${ex.p.map(m => MUSCLES[m]).join(", ")}</div><h2>${esc(ex.name)}</h2></div>
       <button class="icon-btn" data-act="close" aria-label="Close" style="font-size:22px">✕</button>
     </div>
     <div class="fig-wrap">
@@ -1299,6 +1397,7 @@ function renderSheet() {
       <div class="fact pulley-fact"><div class="k">Pulley height</div><div class="v">${lvl.name}</div><div class="s">${lvl.where}</div></div>
       <div class="fact"><div class="k">Where you stand</div><div class="v" style="font-weight:500">${esc(ex.position)}</div></div>
     </div>
+    ${muscleBlock(ex.p, ex.s, "Muscles worked", FOCUS[ex.id] || "")}
     <section class="logger ${today.length >= item.sets ? "complete" : ""}" aria-label="Log sets">
       <div class="row" style="justify-content:space-between"><h3>Log today</h3>${today.length >= item.sets
         ? `<span class="pill done">✓ Done</span>` : `<span class="pill">${today.length}/${item.sets} sets · ${item.min}–${item.max} reps</span>`}</div>

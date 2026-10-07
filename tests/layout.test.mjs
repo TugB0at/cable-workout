@@ -151,6 +151,28 @@ async function layoutTests(browser, url) {
       await shot(tab);
     }
 
+    // Muscles: the day's list on Today, and each exercise's own list and body map.
+    if (width === WIDTHS[0]) {
+      await tap(page, 'nav.tabs [data-tab="today"]', "the today tab");
+      await tap(page, '[data-day="mon"]', "Monday");
+      const m = await page.evaluate(() => {
+        const day = [...document.querySelectorAll(".musc .mchip.p")].map(c => c.textContent);
+        openSheet("chest-press");
+        const main = [...document.querySelectorAll("dialog[open] .musc .mchip.p")].map(c => c.textContent);
+        const also = [...document.querySelectorAll("dialog[open] .musc .mchip.s")].map(c => c.textContent);
+        const map = document.querySelectorAll("dialog[open] .musc .mm .p").length;
+        openSheet("goblet-squat");
+        const goblet = [...document.querySelectorAll("dialog[open] .gear-card .nm")].map(c => c.textContent);
+        document.getElementById("sheet").close();
+        return { day, main, also, map, goblet };
+      });
+      const okDay = ["Chest", "Front delts", "Side delts", "Triceps"].every(x => m.day.includes(x));
+      const okEx = m.main.join() === "Chest" && m.also.join() === "Front delts,Triceps" && m.map > 0;
+      okDay ? pass(`Monday lists its muscles: ${m.day.join(", ")}`) : fail(`Monday muscles: ${m.day.join(", ")}`);
+      okEx ? pass("chest press: main Chest, also front delts and triceps, shaded on the body map") : fail(`chest press muscles: ${JSON.stringify(m)}`);
+      m.goblet.join() === "D-handle" ? pass("goblet squat uses one D-handle") : fail(`goblet squat attachment: ${m.goblet.join(", ")}`);
+    }
+
     const nav = await page.evaluate(() => {
       const n = document.querySelector("nav.tabs");
       return { scrolls: n.scrollWidth > n.clientWidth + 1, minH: Math.min(...[...n.querySelectorAll("button")].map(b => b.getBoundingClientRect().height)) };
