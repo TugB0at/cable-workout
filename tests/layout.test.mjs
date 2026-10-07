@@ -116,6 +116,13 @@ async function checkScreen(page, label) {
   return !bad.length;
 }
 
+const RGB_HELPER = () => {
+  window.rgb = c => {
+    const n = c.match(/[\d.]+/g).map(Number);
+    return c.startsWith("color(") ? n.slice(0, 3).map(v => v * 255) : n.slice(0, 3);
+  };
+};
+
 async function layoutTests(browser, url) {
   fs.mkdirSync(OUT, { recursive: true });
   for (const width of WIDTHS) {
@@ -123,6 +130,7 @@ async function layoutTests(browser, url) {
     const ctx = await browser.newContext({ viewport: { width, height: 780 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3, colorScheme: "dark", reducedMotion: "reduce" });
     const data = seed();
     await ctx.addInitScript(([key, value]) => { if (!localStorage.getItem(key)) localStorage.setItem(key, value); }, [LS_KEY, JSON.stringify(data)]);
+    await ctx.addInitScript(RGB_HELPER);
     const page = await ctx.newPage();
     const errors = [];
     page.on("pageerror", e => errors.push(e.message));
@@ -155,9 +163,17 @@ async function layoutTests(browser, url) {
     await tap(page, '[data-day="mon"]', "Monday");
     await tap(page, '[data-open="chest-press"]', "the first exercise");
     if (!(await page.$("dialog[open] #wIn"))) { fail("exercise view didn't open from Today"); await ctx.close(); continue; }
-    await page.fill("#wIn", "135"); await page.fill("#rIn", "12");
-    await tap(page, '#logForm button[type="submit"]', "Log set");
-    await page.waitForTimeout(150);
+    for (const reps of ["12", "11", "10"]) {             // all 3 planned sets
+      await page.fill("#wIn", "135"); await page.fill("#rIn", reps);
+      await tap(page, '#logForm button[type="submit"]', "Log set");
+      await page.waitForTimeout(120);
+    }
+    const green = await page.evaluate(() => {
+      const isGreen = el => { const [r, g, b] = rgb(getComputedStyle(el).backgroundColor); return g > r + 10 && g > b; };
+      const slots = [...document.querySelectorAll("dialog[open] .slot")];
+      return { done: slots.filter(x => x.classList.contains("done") && isGreen(x)).length, total: slots.length, logger: document.querySelector("dialog[open] .logger").classList.contains("complete") };
+    });
+    if (green.done !== 3 || green.total !== 3 || !green.logger) fail(`after 3 sets: ${green.done} of ${green.total} set rows green, exercise marked done: ${green.logger}`);
     await page.fill("#wIn", "137.5");   // widest realistic weight
     const taps = await page.evaluate(() => Math.min(...[...document.querySelectorAll('#logForm button')].map(b => b.getBoundingClientRect().height)));
     if (taps < 44) fail(`log buttons are only ${Math.round(taps)}px tall (want 44+)`);
@@ -179,8 +195,19 @@ async function layoutTests(browser, url) {
     await page.evaluate(() => document.getElementById("sheet").close());
     clean = clean && !wide.length;
 
+    // Back on Today, the finished exercise is green and counted.
+    await page.waitForTimeout(150);
+    const row = await page.evaluate(() => {
+      const r = document.querySelector('.ex-row[data-open="chest-press"]');
+      const [cr, cg, cb] = rgb(getComputedStyle(r).borderTopColor);
+      return { complete: r.classList.contains("complete"), green: cg > cr + 10 && cg > cb, progress: document.querySelector(".day-progress .txt")?.textContent.trim() };
+    });
+    if (!row.complete || !row.green || row.progress !== "1 of 5 exercises done") { fail(`Today after finishing an exercise: ${JSON.stringify(row)}`); clean = false; }
+    clean = (await checkScreen(page, "today tab with a finished exercise")) && clean;
+    await shot("today-done");
+
     if (errors.length) fail(`script errors: ${errors.join(" | ")}`);
-    if (clean && !nav.scrolls && nav.minH >= 44 && taps >= 44 && !errors.length) pass(`all screens and ${ids.length} exercise views fit`);
+    if (clean && !nav.scrolls && nav.minH >= 44 && taps >= 44 && !errors.length && green.done === 3) pass(`all screens and ${ids.length} exercise views fit; finished sets and exercises turn green`);
     await ctx.close();
   }
 }

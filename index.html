@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#11161b">
-<meta name="app-version" content="2026.10.07-3">
+<meta name="app-version" content="2026.10.07-4">
 <meta name="description" content="Cable machine workouts by day, with pulley-height diagrams, set logging and progress charts.">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -104,14 +104,36 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin
 .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--surface-2); color: var(--ink); white-space: nowrap; max-width: 100%; }
 .pill.pulley { white-space: normal; border-radius: 8px; }
 .pill.pulley { background: var(--accent); color: var(--accent-ink); }
-.pill.done { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
+.pill.done { background: var(--good); color: var(--bg); }
+.ex-row.complete { border-color: color-mix(in srgb, var(--good) 70%, transparent); background: color-mix(in srgb, var(--good) 13%, var(--surface)); }
+.ex-row.complete .order { color: var(--good); font-weight: 700; }
+.day-progress { display: grid; gap: 6px; }
+.day-progress .bar { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.day-progress .bar i { display: block; height: 100%; border-radius: inherit; background: var(--good); transition: width .3s ease; }
+.day-progress .txt { font-size: 13px; font-weight: 600; color: var(--muted); }
+.day-progress.all .txt { color: var(--good); }
+
+/* Planned sets in the logger: grey until logged, green with a tick once done */
+.slots { display: grid; gap: 6px; }
+.slot { display: grid; grid-template-columns: 26px auto minmax(0, 1fr) 40px; align-items: center; gap: 10px; min-height: 48px; padding: 4px 4px 4px 10px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.slot .ck { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; font-size: 15px; font-weight: 800; line-height: 1; }
+.slot .lbl { font-weight: 600; white-space: nowrap; }
+.slot .val { font-family: var(--font-mono); font-size: 15px; text-align: right; min-width: 0; }
+.slot .val.todo { font-family: var(--font-body); font-size: 13px; color: var(--muted); }
+.slot button { width: 40px; height: 40px; border: 0; border-radius: 8px; background: none; color: var(--muted); font-size: 15px; cursor: pointer; }
+.slot.done { background: color-mix(in srgb, var(--good) 16%, var(--surface)); border-color: color-mix(in srgb, var(--good) 65%, transparent); }
+.slot.done .ck { background: var(--good); border-color: var(--good); color: var(--bg); }
+.slot.done .lbl { color: var(--good); }
+.slot.next { border: 2px dashed var(--accent); }
+.slot.next .ck { border-color: var(--accent); }
+.logger.complete { border-color: color-mix(in srgb, var(--good) 65%, transparent); }
 
 .ex-list { display: grid; gap: 10px; }
 .ex-row {
   display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 14px; align-items: start; text-align: left;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px; cursor: pointer; width: 100%;
 }
-.ex-row:hover { border-color: var(--muted); }
 .ex-row .info { min-width: 0; display: grid; gap: 4px; }
 .ex-row .title { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: baseline; }
 .ex-row .name { font-weight: 600; font-size: 16px; line-height: 1.3; }
@@ -158,17 +180,14 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
 .grid-lib { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
 .lib-card { display: grid; gap: 8px; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px; cursor: pointer; }
-.lib-card:hover { border-color: var(--muted); }
 .lib-card .name { font-weight: 600; }
 .lib-card .meta { font-size: 13px; color: var(--muted); }
 
 .btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 600; font-size: 14px; }
-.btn:hover { border-color: var(--muted); }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .btn.danger { color: var(--cable); }
 .btn.small { padding: 4px 10px; font-size: 13px; }
 .icon-btn { border: 0; background: none; cursor: pointer; padding: 4px 8px; color: var(--muted); font-size: 16px; line-height: 1; border-radius: 6px; }
-.icon-btn:hover { background: var(--surface-2); color: var(--ink); }
 
 .empty { border: 1px dashed var(--line); border-radius: var(--r); padding: 24px; text-align: center; color: var(--muted); }
 .rest { padding: 32px 20px; }
@@ -286,7 +305,7 @@ button, a, input, select, label { touch-action: manipulation; }
   nav.tabs button[aria-selected="true"] { border-top-color: var(--accent); }
   .shell { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
   .rest-bar.global { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); left: 10px; right: 10px; }
-  .toast { bottom: auto; top: calc(12px + env(safe-area-inset-top, 0px)); }
+  .toast { bottom: auto; top: calc(66px + env(safe-area-inset-top, 0px)); }
   .daychips.week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
   .daychips.week .chip-btn { padding: 8px 0; min-height: 40px; font-size: 13px; }
   dialog.sheet { width: 100%; max-width: 100%; height: 100%; max-height: 100%; margin: 0; border-radius: 0; }
@@ -311,6 +330,11 @@ button, a, input, select, label { touch-action: manipulation; }
   .gear-pick .gear-card { flex: none; }
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   h2 { font-size: 26px; }
+}
+/* Hover outlines only with a mouse; on phones a tapped row would otherwise stay outlined. */
+@media (hover: hover) {
+  .ex-row:not(.complete):hover, .lib-card:hover, .btn:hover { border-color: var(--muted); }
+  .icon-btn:hover { background: var(--surface-2); color: var(--ink); }
 }
 @media (max-width: 340px) {
   .ex-row { grid-template-columns: 72px minmax(0, 1fr); }
@@ -1045,19 +1069,21 @@ function viewToday() {
   const chips = DAYS.map(([id, nm]) => `<button class="chip-btn ${id === tId ? "today" : ""}" data-day="${id}" aria-pressed="${id === ui.day}">${nm.slice(0, 3)}</button>`).join("");
   const items = day.items.map((item, i) => {
     const ex = EXMAP[item.id]; if (!ex) return "";
-    const done = setsOn(todayKey(), ex.id).length;
+    const done = setsOn(todayKey(), ex.id).length, complete = done >= item.sets;
     const last = lastSession(ex.id);
     const note = Store.state.notes[ex.id];
-    return `<button class="ex-row" data-open="${ex.id}" data-ctx="today">
+    return `<button class="ex-row ${complete ? "complete" : ""}" data-open="${ex.id}" data-ctx="today">
       <div data-fig="${ex.id}"></div>
       <div class="info">
-        <div class="title"><span class="order">${String(i + 1).padStart(2, "0")}</span><span class="name">${esc(ex.name)}</span></div>
+        <div class="title"><span class="order">${complete ? "✓" : String(i + 1).padStart(2, "0")}</span><span class="name">${esc(ex.name)}</span></div>
         <div class="row">
           <span class="pill pulley">Pulley: ${LEVELS[ex.level].name}${note ? " · " + esc(note) : ""}</span>
           <span class="pill">${item.sets} × ${item.min}–${item.max}</span>
-          ${done ? `<span class="pill ${done >= item.sets ? "done" : ""}">${done}/${item.sets} sets today</span>` : ""}
+          ${complete ? `<span class="pill done">✓ Done · ${done} sets</span>` : done ? `<span class="pill">${done}/${item.sets} sets done</span>` : ""}
         </div>
-        <div class="meta">${esc(ex.attach)} · ${last ? `Last (${fmtDate(last.date, { month: "short", day: "numeric" })}): <span class="num">${fmtW(Math.max(...last.sets.map(s => s.w)))} ${unit()} × ${setsText(last.sets)}</span>` : "Not logged yet"}</div>
+        <div class="meta">${esc(ex.attach)} · ${done
+          ? `Today: <span class="num">${fmtW(Math.max(...setsOn(todayKey(), ex.id).map(s => s.w)))} ${unit()} × ${setsText(setsOn(todayKey(), ex.id))}</span>`
+          : last ? `Last (${fmtDate(last.date, { month: "short", day: "numeric" })}): <span class="num">${fmtW(Math.max(...last.sets.map(s => s.w)))} ${unit()} × ${setsText(last.sets)}</span>` : "Not logged yet"}</div>
       </div>
     </button>`;
   }).join("");
@@ -1066,10 +1092,20 @@ function viewToday() {
       <div class="eyebrow">${isToday ? "Today · " + fmtDate(todayKey(), { weekday: "long", month: "long", day: "numeric" }) : dayName + " plan · sets you log go to today"}</div>
       <h2>${esc(day.title || "Workout")}</h2>
       <div class="daychips week" aria-label="Pick a day">${chips}</div>
+      ${dayProgress(day)}
     </section>
     ${day.items.length ? `<section class="ex-list">${items}</section>` :
       `<section class="empty rest"><h3>Rest day</h3><p>Nothing planned for ${dayName}. Walk, stretch, sleep. To train anyway, pick another day above, or add exercises in the Plan tab.</p></section>`}
   `;
+}
+
+function dayProgress(day) {
+  const items = day.items.filter(x => EXMAP[x.id]);
+  if (!items.length) return "";
+  const doneN = items.filter(x => setsOn(todayKey(), x.id).length >= x.sets).length;
+  const all = doneN === items.length;
+  return `<div class="day-progress ${all ? "all" : ""}"><div class="bar"><i style="width:${(doneN / items.length) * 100}%"></i></div>
+    <div class="txt">${all ? "✓ Workout complete. Nice work." : `${doneN} of ${items.length} exercises done`}</div></div>`;
 }
 
 function viewLibrary() {
@@ -1263,8 +1299,9 @@ function renderSheet() {
       <div class="fact pulley-fact"><div class="k">Pulley height</div><div class="v">${lvl.name}</div><div class="s">${lvl.where}</div></div>
       <div class="fact"><div class="k">Where you stand</div><div class="v" style="font-weight:500">${esc(ex.position)}</div></div>
     </div>
-    <section class="logger" aria-label="Log sets">
-      <div class="row" style="justify-content:space-between"><h3>Log today</h3><span class="pill">${item.sets} × ${item.min}–${item.max} reps</span></div>
+    <section class="logger ${today.length >= item.sets ? "complete" : ""}" aria-label="Log sets">
+      <div class="row" style="justify-content:space-between"><h3>Log today</h3>${today.length >= item.sets
+        ? `<span class="pill done">✓ Done</span>` : `<span class="pill">${today.length}/${item.sets} sets · ${item.min}–${item.max} reps</span>`}</div>
       <div class="muted" style="font-size:13px">Log the number on the weight-stack pin. The Arcadia is 2:1, so the cable feels like about half of that.</div>
       <div class="hint">${sug.text}${last ? ` <span class="muted">Last time: <span class="num">${last.sets.map(s => `${fmtW(s.w)}×${s.r}`).join(", ")}</span></span>` : ""}</div>
       <form class="log-form" id="logForm">
@@ -1273,7 +1310,11 @@ function renderSheet() {
         <button class="btn primary" type="submit">Log set</button>
       </form>
       <div class="rest-bar" data-restbar hidden><div class="rest-fill"></div><span class="lbl">Rest</span><b class="rest-time">1:30</b><button type="button" data-rest="-15" aria-label="15 seconds less">−15</button><button type="button" data-rest="15" aria-label="15 seconds more">+15</button><button type="button" data-rest="skip">Skip</button></div>
-      <div class="sets">${today.length ? today.map((s, i) => `<span class="set-chip">${i + 1}: ${fmtW(s.w)} ${unit()} × ${s.r}<button data-delset="${i}" aria-label="Delete set ${i + 1}">✕</button></span>`).join("") : `<span class="muted" style="font-size:14px">No sets yet today.</span>`}</div>
+      <div class="slots" aria-label="Sets">${Array.from({ length: Math.max(item.sets, today.length) }, (_, i) => {
+        const st = today[i];
+        if (st) return `<div class="slot done"><span class="ck" aria-hidden="true">✓</span><span class="lbl">Set ${i + 1}</span><span class="val">${fmtW(st.w)} ${unit()} × ${st.r}</span><button data-delset="${i}" aria-label="Delete set ${i + 1}">✕</button></div>`;
+        return `<div class="slot ${i === today.length ? "next" : ""}"><span class="ck" aria-hidden="true"></span><span class="lbl">Set ${i + 1}</span><span class="val todo">${i === today.length ? "Up next · " : ""}${item.min}–${item.max} reps</span><span></span></div>`;
+      }).join("")}</div>
       ${workoutNav(ex.id)}
     </section>
     <section class="stack" style="gap:8px" aria-label="Attachment">
@@ -1521,7 +1562,7 @@ sheet.addEventListener("submit", e => {
   (Store.logs[d].sets[sheetEx.id] = Store.logs[d].sets[sheetEx.id] || []).push({ w, r });
   Store.saveLog(d);
   const n = setsOn(d, sheetEx.id).length, target = planItemFor(sheetEx.id).sets;
-  toast(n >= target ? `Set ${n} logged. That's all ${target} sets.` : `Set ${n} of ${target} logged`);
+  toast(n === target ? `✓ ${sheetEx.name}: all ${target} sets done` : n > target ? `Extra set ${n} logged` : `Set ${n} of ${target} done`);
   renderSheet(); render();
   unlockAudio();
   startRest(Store.state.rest || 90);
